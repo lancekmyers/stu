@@ -21,10 +21,12 @@ import Data.Text (Text)
 import qualified Data.Vector as V
 import Prettyprinter
 import Types
-import Control.Comonad.Trans.Cofree ( CofreeF((:<)) )
-import qualified Control.Comonad.Cofree as Cofree (Cofree(..))
+import Control.Comonad.Trans.Cofree ( CofreeF((:<)), Cofree, CofreeT, headF, cofree )
+-- import qualified Control.Comonad.Cofree as Cofree (Cofree(..))
 import Text.Megaparsec.Pos (SourcePos (..), unPos)
 import Control.Comonad (extract)
+import Control.Comonad.Identity (Identity (runIdentity, Identity))
+import Data.Functor.Compose (Compose(getCompose, Compose))
 
 data Ctx = Ctx
   { vars :: Map Text Ty,
@@ -76,69 +78,78 @@ insertTy name ty = do
   let vars' = M.insert name ty vars
   put $ Ctx vars' funs dists cards
 
-inferTy ::
-  forall m.
+inferTy :: forall m.
   ( MonadTyCtx m,
     MonadError TypeError m
-  ) =>
-  ExprSrc ->
-  m Ty
-inferTy = cataA blame
-  where
-    -- proj (ann :< exp) = exp
-    blame :: CofreeF ExprF SourcePos (m Ty) -> m Ty
-    blame (loc :< exp) = catchError (alg exp) (throwError . Blame loc)
-    
-    alg :: ExprF (m Ty) -> m Ty
-    alg (ArithF binop t1 t2) = do
-      ty_lhs@(Ty sh_lhs el_lhs) <- t1
-      ty_rhs@(Ty sh_rhs el_rhs) <- t2
-      when (el_lhs /= el_rhs) . throwError $ BinOpElTyErr binop el_lhs el_rhs
-      case broadcast sh_lhs sh_rhs of
-        Nothing -> throwError $ BinOpShapeErr binop sh_lhs sh_rhs
-        Just sh -> return $ Ty sh el_lhs
-    alg (VarF name) = lookupVar name
-    alg (GatherF xs_ty is_ty) = do
-      xs_ty'@(Ty xs_sh xs_el) <- xs_ty -- [k, l]real
-      is_ty'@(Ty is_sh is_el) <- is_ty -- [i, j]#k
-      case is_el of
-        IND card -> case V.uncons xs_sh of
-          Just (k, ks) -> do
-            when (card /= k) (throwError $ InvalidGather xs_ty' is_ty')
-            let sh = is_sh <> ks
-            return $ Ty sh xs_el
-          Nothing -> throwError $ InvalidGather xs_ty' is_ty'
-        _ -> throwError $ InvalidGather xs_ty' is_ty'
-    alg (FunAppF fname arg_tys) = do
-      fty <- lookupFun fname
-      arg_tys' <- sequenceA arg_tys
-      case unify arg_tys' fty of
-        Left _ -> throwError $ BadFunApp fname arg_tys' fty
-        Right ret -> return ret
-    alg (LitReal    _) = return $ Ty [] REAL
-    alg (LitInt     _) = return $ Ty [] INT
-    alg (LitArray  []) = throwError $ 
-      OtherErr "Cannot infer type of empty tensor"
-    alg (LitArray tys) = do 
-      tys' <- sequenceA tys
-      if and $ zipWith (==) tys' (tail tys')
-      then
-        let (Ty sh el) = head tys'
-        in return $ Ty (V.cons (CardN $ length tys') sh) el
-      else throwError $ NonHomogenousArrayLit tys'
+  ) => Cofree ExprF SourcePos -> m (Cofree ExprF Ty)
+inferTy = para (bar . runIdentity . getCompose)
+  where 
+    bar :: 
+      CofreeF ExprF SourcePos (Cofree ExprF SourcePos, m (Cofree ExprF Ty)) 
+      -> m (Cofree ExprF Ty)
+    bar (loc :< exp) = do 
+      let embed' = embed . Compose . Identity
+      let foo = fmap (runIdentity . getCompose . project) . snd <$> exp 
+      let exp = fmap (\(ty :< exp) -> ty) <$> foo
+      ty <- catchError (alg exp) (throwError . Blame loc)
+      baz <- sequence (fmap (\(ty :< exp) -> exp) <$> foo)
+      let qux = ((\e -> embed' $ ty :< e) <$> baz) :: ExprF (Cofree ExprF Ty)
+      return . embed' $ ty :< qux
 
+alg :: MonadTyCtx m => ExprF (m Ty) -> m Ty
+alg (ArithF binop t1 t2) = do
+  ty_lhs@(Ty sh_lhs el_lhs) <- t1
+  ty_rhs@(Ty sh_rhs el_rhs) <- t2
+  when (el_lhs /= el_rhs) . throwError $ BinOpElTyErr binop el_lhs el_rhs
+  case broadcast sh_lhs sh_rhs of
+    Nothing -> throwError $ BinOpShapeErr binop sh_lhs sh_rhs
+    Just sh -> return $ Ty sh el_lhs
+  
+alg (VarF name) = lookupVar name
+alg (GatherF xs_ty is_ty) = do
+  xs_ty'@(Ty xs_sh xs_el) <- xs_ty -- [k, l]real
+  is_ty'@(Ty is_sh is_el) <- is_ty -- [i, j]#k
+  case is_el of
+    IND card -> case V.uncons xs_sh of
+      Just (k, ks) -> do
+        when (card /= k) (throwError $ InvalidGather xs_ty' is_ty')
+        let sh = is_sh <> ks
+        return $ Ty sh xs_el
+      Nothing -> throwError $ InvalidGather xs_ty' is_ty'
+    _ -> throwError $ InvalidGather xs_ty' is_ty'
 
+alg (FunAppF fname arg_tys) = do
+  fty <- lookupFun fname
+  arg_tys' <- sequenceA arg_tys
+  case unify arg_tys' fty of
+    Left _ -> throwError $ BadFunApp fname arg_tys' fty
+    Right ret -> return ret
+alg (LitReal    _) = return $ Ty [] REAL
+alg (LitInt     _) = return $ Ty [] INT
+alg (LitArray  []) = throwError $ 
+  OtherErr "Cannot infer type of empty tensor"
+alg (LitArray tys) = do 
+  tys' <- sequenceA tys
+  if and $ zipWith (==) tys' (tail tys')
+  then 
+    let (Ty sh el) = head tys'
+    in return $ Ty (V.cons (CardN $ length tys') sh) el
+  else throwError $ NonHomogenousArrayLit tys'
 
+cofreeHead :: Functor f => Cofree f a -> a
+cofreeHead = headF . runIdentity . getCompose . project
 inferTyDist ::
   (MonadTyCtx m) =>
   Distribution SourcePos ->
-  m Ty
-inferTyDist (Distribution dname args) = do
+  m (Distribution Ty) 
+inferTyDist (Distribution dname args loc bd) = do
   fty <- lookupDist dname
-  arg_tys <- traverse inferTy args
+  -- annotated expressions passed as arguments 
+  arg_ann <- traverse inferTy args
+  let arg_tys = map cofreeHead arg_ann
   case unify arg_tys fty of
-    Left _ -> throwError $ BadDistr dname arg_tys fty
-    Right ret -> return ret
+    Left _ -> throwError $ Blame loc $ BadDistr dname arg_tys fty
+    Right ret -> return (Distribution dname arg_ann ret bd)
 
 stmtHandler ::
   (MonadError TypeError m) =>
@@ -151,30 +162,40 @@ checkModelStmt ::
   forall m a.
   (MonadTyCtx m) =>
   ModelStmt SourcePos ->
-  m ()
+  m (ModelStmt Ty)
 checkModelStmt (ValStmt name ty val) = stmtHandler name $ do
-  ty' <- inferTy val
+  val' <- inferTy val
+  let ty' = cofreeHead val'
   let err = ExpectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
   insertTy name ty
-checkModelStmt (ParamStmt name ty dist _) = stmtHandler name $ do
-  ty' <- inferTyDist dist
+  return (ValStmt name ty val')
+checkModelStmt (ParamStmt name ty dist bij) = stmtHandler name $ do
+  Distribution dname args ty' _ <- inferTyDist dist
   let err = ExpectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
   insertTy name ty
+  let bd = rank ty - rank ty' 
+  let bij' = fmap (const ty') <$> bij
+  let dist' = Distribution dname args ty (Just bd)
+  return (ParamStmt name ty dist' bij')
 checkModelStmt (ObsStmt name dist) = stmtHandler name $ do
-  ty <- inferTyDist dist
-  ty' <- lookupVar name
+  Distribution dname args ty' _ <- inferTyDist dist
+  ty <- lookupVar name
   let err = ExpectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
   insertTy name ty
+  let bd = rank ty - rank ty' 
+  let dist' = Distribution dname args ty (Just bd)
+  return (ObsStmt name dist')
 
 checkModel ::
   forall m.
   (MonadTyCtx m, MonadError TypeError m) =>
   Model SourcePos ->
-  m ()
-checkModel (Model stmts) = forM_ stmts checkModelStmt
+  m (Model Ty)
+checkModel (Model stmts) = Model <$> forM stmts checkModelStmt
+
 
 allSame :: Eq a => [a] -> Bool
 allSame xs = and $ zipWith (==) xs (tail xs)

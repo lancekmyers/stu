@@ -10,13 +10,15 @@ import qualified Data.Text as T
 import Text.Builder (Builder)
 import qualified Text.Builder as Builder
 import Types
-import Control.Comonad.Trans.Cofree (CofreeF(..))
+import Control.Comonad.Trans.Cofree (CofreeF(..), tailF)
 import Data.Functor.Foldable
 
 import Data.String (IsString (..))
 import Control.Monad.Free (_Free)
 import Control.Monad.Reader (Reader, MonadReader (ask, local), runReader)
 import Data.Maybe (mapMaybe)
+import Data.Functor.Identity (Identity(..))
+import Data.Functor.Compose (Compose(..))
 
 {-
 Preamble should look like 
@@ -40,7 +42,7 @@ cgBijDict (Model stmts)
 
 
 cgBij :: Bijector a -> PyExp  
-cgBij = fold (\(_ :< x) -> alg x) where 
+cgBij = fold (alg . tailF . runIdentity . getCompose) where 
   alg :: BijectorF PyExp -> PyExp
   alg (MkBij name args) = (distrax name) @@ (PyNum . Left <$> args)
     
@@ -120,7 +122,7 @@ f @@ x = PyApply f x
 cgExpr :: Expr w -> PyExp
 cgExpr = cata (go . proj)
   where 
-    proj (_ :< expr) = expr
+    proj = tailF . runIdentity . getCompose
     go :: ExprF PyExp -> PyExp
     go (ArithF op x y) = case op of
       Add -> jnp "add" @@ [x, y]
@@ -135,8 +137,9 @@ cgExpr = cata (go . proj)
     go (GatherF xs is) = jnp "gather" @@ [xs, is]
 
 
+-- add in batch dimensions
 cgDistribution :: Distribution a -> PyExp
-cgDistribution (Distribution name args) = distrax name @@ (cgExpr <$> args)
+cgDistribution (Distribution name args _ bd) = distrax name @@ (cgExpr <$> args)
 
 ld_tr :: Text -> PyCode 
 ld_tr name = PyDestr [name_ld, name_tr] $ 
@@ -185,108 +188,3 @@ writeModel model = runReader (prettyCode $ cgModel model) 0
 
 writeProg :: Program a -> Builder
 writeProg (Program _  model) = writeModel model
-{-
-cgProg (decls, model) = do
-  modelCode <- cgModel model
-  return $
-    Builder.intercalate
-      "\n\n"
-      [preamble, cgConstraints decls, modelCode]
--}
-
-{-
-cgModelStmt :: ModelStmt a -> Builder 
-cgModelStmt (ParamStmt name ty dist _) = _
-  where 
-    nb = Builder.text name
-    _ = " = bijectors['" <> nb <> "'].log_and_det_forward(params['" <> nb <> "'])"
--}
-
-{-
-cgModelStmt :: (MonadTyCtx m) => ModelStmt -> m Builder
-cgModelStmt (ParamStmt name ty dist) = do
-  dist_code <- cgDistribution name dist
-  return $
-    mconcat
-      [ "\t#",
-        Builder.text name,
-        " : ",
-        Builder.string $ show ty,
-        "\n",
-        "\t",
-        Builder.text name,
-        " = yield ",
-        dist_code
-      ]
-cgModelStmt (ValStmt name ty val) =
-  return $
-    mconcat
-      [ "\t#",
-        Builder.text name,
-        " : ",
-        Builder.string $ show ty,
-        "\n",
-        "\t",
-        Builder.text name,
-        " = ",
-        cgExpr val
-      ]
-cgModelStmt (ObsStmt name dist) = do
-  dist_code <- cgDistribution name dist
-  return $
-    mconcat
-      [ "\t",
-        "yield ",
-        dist_code
-      ]
-
-cgModelJD :: (MonadTyCtx m) => Model -> m Builder
-cgModelJD (Model stmts) = do
-  model_stmts <- sequenceA $ cgModelStmt <$> stmts
-  return $
-    Builder.intercalate
-      "\n"
-      [ "@tfd.JointDistributionCoroutineAutoBatched",
-        "def joint_dist():",
-        Builder.intercalate "\n" $ model_stmts
-      ]
-
--- generate constraints
-
-cgConstraints :: [Decl] -> Builder
-cgConstraints decls =
-  "tf.debuging.assert_shapes([" <> Builder.intercalate ", " constraints <> "])"
-  where
-    isData (DataDecl _ _) = True
-    isData _ = False
-
-    dataDecls = filter isData decls
-    constraints :: [Builder]
-    constraints =
-      [ "(" <> Builder.text name <> ", " <> cgShape sh <> ")"
-        | DataDecl name (Ty sh _) <- dataDecls
-      ]
-
-cgCard :: Card -> Builder
-cgCard (CardN n) = Builder.decimal n
-cgCard (CardFV v) = "\"" <> Builder.text v <> "\""
-cgCard (CardBV i) = "\"" <> Builder.string (show i) <> "\""
-
-cgShape :: Shape -> Builder
-cgShape sh = "(" <> (Builder.intercalate ", " (cgCard <$> sh)) <> ")"
-
-cgPinnedLogProb :: Builder 
-cgPinnedLogProb = Builder.intercalate "\n" 
-  [ "pinned_joint_dist = joint_dist.experimental_pin(obs.to_dict()['observed_data'])"
-  , "@tf.function(autograph=False, jit_compile=False)"
-  , "def target_log_prob(*x):"
-  , "\t return pinned_joint_dist.unnormalized_log_prob(x)"
-  ]
-
-cgProg (decls, model) = do
-  modelCode <- cgModelJD model
-  return $
-    Builder.intercalate
-      "\n\n"
-      [preamble, cgConstraints decls, modelCode]
--}

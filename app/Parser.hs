@@ -4,7 +4,7 @@ module Parser where
 
 import AST
 import Control.Monad.Combinators.Expr
-import Control.Comonad.Cofree (Cofree(..))
+import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
@@ -57,7 +57,7 @@ pVariable :: Parser ExprSrc
 pVariable = do 
   position <- getSourcePos 
   ident <- lexeme pIdent
-  return $ position :< VarF ident
+  return . cofree $ position :< VarF ident
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
@@ -67,20 +67,20 @@ pLitInt = do
   pos <- getSourcePos 
   int <- signedInteger
   let litInt = LitInt . fromInteger $ int
-  return $ pos :< litInt 
+  return . cofree $ pos :< litInt 
 
 pLitReal :: Parser ExprSrc
 pLitReal = do 
   pos <- getSourcePos
   lit <- LitReal <$> signedFloat
-  return $ pos :< lit
+  return . cofree $ pos :< lit
 
 pLitArray :: Parser ExprSrc
 pLitArray = do 
   pos <- getSourcePos
   litArr <- between (symbol "[") (symbol "]") $
     LitArray <$> sepBy pExpr (symbol ",")
-  return $ pos :< litArr
+  return . cofree $ pos :< litArr
 
 pLit :: Parser (ExprSrc)
 pLit = choice 
@@ -104,19 +104,19 @@ pExpr = makeExprParser pTerm operatorTable
 pAdd = do 
   star <- symbol "+" 
   loc <- getSourcePos
-  return $ \x y -> loc :< ArithF Add x y  
+  return $ \x y -> cofree $ loc :< ArithF Add x y  
 pMul = do 
   star <- symbol "*" 
   loc <- getSourcePos
-  return $ \x y -> loc :< ArithF Mul x y  
+  return $ \x y -> cofree $ loc :< ArithF Mul x y  
 pDiv = do 
   star <- symbol "/" 
   loc <- getSourcePos
-  return $ \x y -> loc :< ArithF Div x y  
+  return $ \x y -> cofree $ loc :< ArithF Div x y  
 pSub = do 
   star <- symbol "-" 
   loc <- getSourcePos
-  return $ \x y -> loc :< ArithF Sub x y  
+  return $ \x y -> cofree $ loc :< ArithF Sub x y  
 
 
 operatorTable :: [[Operator Parser ExprSrc]]
@@ -136,15 +136,16 @@ pApp = do
   args <- parens $ pExpr `sepBy` symbol ","
   case funcName of
     "gather" -> case args of
-      [xs, is] -> return $ loc :< GatherF xs is
+      [xs, is] -> return . cofree $ loc :< GatherF xs is
       _ -> fail "gather expects 2 arguments"
-    _ -> return $ loc :< FunAppF funcName args
+    _ -> return . cofree $ loc :< FunAppF funcName args
 
 pDistribution :: Parser (Distribution SourcePos)
 pDistribution = do
+  loc <- getSourcePos
   distName <- pIdentUpper
   distArgs <- parens $ pExpr `sepBy` symbol ","
-  return $ Distribution distName distArgs
+  return $ Distribution distName distArgs loc Nothing
 
 ------
 
@@ -250,14 +251,14 @@ pBijNamed = do
   loc <- getSourcePos
   bijName <- pIdentUpper
   bijArgs <- parens $ (lexeme L.float) `sepBy` symbol ","
-  return $ loc :< (MkBij bijName bijArgs)
+  return . cofree $ loc :< (MkBij bijName bijArgs)
 
 pBijChain :: Parser (Bijector  SourcePos)
 pBijChain = do 
   loc <- getSourcePos 
   symbol "Chain"
   bijs <- between (symbol "[") (symbol "]") $ pBij `sepBy` symbol ","
-  return $ loc :< (Chain bijs)
+  return . cofree $ loc :< (Chain bijs)
 
 pBij :: Parser (Bijector SourcePos)
 pBij = pBijChain <|> pBijNamed

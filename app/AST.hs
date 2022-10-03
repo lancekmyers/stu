@@ -11,8 +11,8 @@ module AST where
 
 import Data.Functor.Foldable
 import Data.Functor.Foldable.TH
-import Control.Comonad.Cofree (Cofree(..))
-import Control.Comonad.Trans.Cofree (CofreeF(..))
+--import Control.Comonad.Cofree (Cofree(..))
+import Control.Comonad.Trans.Cofree (CofreeF(..), Cofree)
 
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -57,7 +57,11 @@ type ExprSrc = Expr SourcePos
 type DistName = Text
 
 data Distribution ann 
-  = Distribution DistName [Expr ann]
+  = Distribution 
+      DistName 
+      [Expr ann] 
+      ann 
+      (Maybe Int) --- batchDims 
   deriving ()
 
 data BijectorF a  

@@ -64,11 +64,10 @@ main' fname = do
   -- fname <- getFileName
   prog@(decls, model) <- parseFile fname
   let ctx = buildCtx decls
-  ((), ctx') <- withExceptT pretty $ runStateT (checkModel model) ctx
-  src <- pure $ writeProg (Program decls model) -- withExceptT pretty $ evalStateT (cgProg prog) ctx
-  let (Model modelStmts) = model
-  let src' = B.run src
-  lift $ TIO.writeFile (fname -<.> ".py") src'
+  (model', _) <- withExceptT pretty $ runStateT (checkModel model) ctx
+  let py_src = B.run $ writeProg (Program decls model') 
+    -- withExceptT pretty $ evalStateT (cgProg prog) ctx
+  lift $ TIO.writeFile (fname -<.> ".py") py_src
   return ()
 
 -- putStrLn "Done!"

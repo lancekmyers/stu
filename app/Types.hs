@@ -34,6 +34,9 @@ prettyShape sh = tupled . fmap viaShow $ V.toList sh
 data Ty = Ty {shape :: Shape, elTy :: ElTy}
   deriving (Eq)
 
+rank :: Ty -> Int 
+rank (Ty sh _) = length sh
+
 instance Pretty Ty where pretty = viaShow
 
 instance Show Ty where
