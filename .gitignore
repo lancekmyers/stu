@@ -149,3 +149,7 @@ examples/test.py
 examples/test.stu
 cabal.project.local~
 cabal.project.local
+examples/eight_schools.py
+examples/eight_schools.stu
+examples/pathfinder.stu
+examples/__pycache__/eight_schools.cpython-39.pyc

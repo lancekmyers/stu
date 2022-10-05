@@ -57,7 +57,7 @@ pVariable :: Parser ExprSrc
 pVariable = do 
   position <- getSourcePos 
   ident <- lexeme pIdent
-  return . cofree $ position :< VarF ident
+  return . cofree $ position :< VarF ident Unknown
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
@@ -145,7 +145,7 @@ pDistribution = do
   loc <- getSourcePos
   distName <- pIdentUpper
   distArgs <- parens $ pExpr `sepBy` symbol ","
-  return $ Distribution distName distArgs loc Nothing
+  return $ Distribution distName distArgs loc (Nothing, Nothing)
 
 ------
 

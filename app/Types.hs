@@ -83,6 +83,15 @@ shapeBroadcastsTo sh sh' = and $ V.zipWith go (V.reverse sh) (V.reverse sh')
     go (CardN 1) _ = True
     go x y = x == y
 
+shDiff :: Shape -> Shape -> Maybe Shape 
+shDiff sh sh' = 
+  if V.length sh < V.length sh' 
+  then Just diff 
+  else Nothing 
+  where 
+    diff = V.drop n sh'
+    n  = V.length sh
+
 data FunctionTy
   = FunctionTy Int [(Text, Ty)] Ty
 
@@ -135,7 +144,9 @@ substitute cmap (Ty sh elty) = Ty sh' elty
     substGo (CardBV i) = let (Just c) = (cmap V.! i) in c
     substGo c = c
 
-unify :: [Ty] -> FunctionTy -> Either TyErr Ty
+
+-- | unifies function type with arguments, returns error or function return type and broadcasting shape 
+unify :: [Ty] -> FunctionTy -> Either TyErr (Maybe Shape, Ty)
 unify tys (FunctionTy n args ret) = do
   let err x = Left (TyErr x)
 
@@ -163,11 +174,18 @@ unify tys (FunctionTy n args ret) = do
   let empty_cmap = V.replicate n Nothing
 
   cmap <- runExcept $ execStateT (forM_ cz shapeUnify) empty_cmap
-
+  {-
   let Ty ret_sh ret_el = substitute cmap ret
   return $ case prefixes of
-    sh : _ -> Ty (sh <> ret_sh) ret_el
-    [] -> Ty ret_sh ret_el
+    sh : _ -> (_, Ty (sh <> ret_sh) ret_el)
+    [] -> (_, Ty ret_sh ret_el)
+  -}
+  let Ty ret_sh ret_el = substitute cmap ret
+  let br_sh = if V.length longest_prefix > 0 
+              then Just longest_prefix 
+              else Nothing
+  return (br_sh, Ty (longest_prefix <> ret_sh) ret_el)
+  
 
 real = Ty V.empty REAL
 

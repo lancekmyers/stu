@@ -32,8 +32,9 @@ data Ctx = Ctx
   { vars :: Map Text Ty,
     funs :: Map Text FunctionTy,
     dists :: Map Text FunctionTy,
-    knownCards :: Set Text
-  }
+    knownCards :: Set Text,
+    vardom :: Map Text VarDomain
+  } deriving Show
 
 type MonadTyCtx m = (MonadState Ctx m, MonadError TypeError m)
 
@@ -67,34 +68,45 @@ lookupDist name = do
     Nothing -> throwError $ UnBoundDistIdent name []
     Just ty -> return ty
 
+annotateVarDomain :: (MonadTyCtx m) => ExprF a -> m (ExprF a)
+annotateVarDomain (VarF name _) = do 
+  vardoms <- gets vardom
+  case M.lookup name vardoms of 
+    Nothing -> throwError $ UnBoundVarIdent name []
+    Just d  -> return $ VarF name d
+annotateVarDomain x = return x
+
 insertTy ::
   forall m.
   (MonadTyCtx m) =>
   Text ->
+  VarDomain -> 
   Ty ->
   m ()
-insertTy name ty = do
-  Ctx vars funs dists cards <- get
+insertTy name vd ty = do
+  Ctx vars funs dists cards vardom <- get
   let vars' = M.insert name ty vars
-  put $ Ctx vars' funs dists cards
+  let vardom' = M.insert name vd vardom 
+  put $ Ctx vars' funs dists cards vardom'
 
 inferTy :: forall m.
   ( MonadTyCtx m,
     MonadError TypeError m
   ) => Cofree ExprF SourcePos -> m (Cofree ExprF Ty)
-inferTy = para (bar . runIdentity . getCompose)
+inferTy = para (go . runIdentity . getCompose)
   where 
-    bar :: 
+    go :: 
       CofreeF ExprF SourcePos (Cofree ExprF SourcePos, m (Cofree ExprF Ty)) 
       -> m (Cofree ExprF Ty)
-    bar (loc :< exp) = do 
+    go (loc :< exp) = do 
       let embed' = embed . Compose . Identity
       let foo = fmap (runIdentity . getCompose . project) . snd <$> exp 
       let exp = fmap (\(ty :< exp) -> ty) <$> foo
       ty <- catchError (alg exp) (throwError . Blame loc)
       baz <- sequence (fmap (\(ty :< exp) -> exp) <$> foo)
       let qux = ((\e -> embed' $ ty :< e) <$> baz) :: ExprF (Cofree ExprF Ty)
-      return . embed' $ ty :< qux
+      qux' <- annotateVarDomain qux
+      return . embed' $ ty :< qux'
 
 alg :: MonadTyCtx m => ExprF (m Ty) -> m Ty
 alg (ArithF binop t1 t2) = do
@@ -105,7 +117,7 @@ alg (ArithF binop t1 t2) = do
     Nothing -> throwError $ BinOpShapeErr binop sh_lhs sh_rhs
     Just sh -> return $ Ty sh el_lhs
   
-alg (VarF name) = lookupVar name
+alg (VarF name _) = lookupVar name
 alg (GatherF xs_ty is_ty) = do
   xs_ty'@(Ty xs_sh xs_el) <- xs_ty -- [k, l]real
   is_ty'@(Ty is_sh is_el) <- is_ty -- [i, j]#k
@@ -123,7 +135,7 @@ alg (FunAppF fname arg_tys) = do
   arg_tys' <- sequenceA arg_tys
   case unify arg_tys' fty of
     Left _ -> throwError $ BadFunApp fname arg_tys' fty
-    Right ret -> return ret
+    Right (_, ret) -> return ret
 alg (LitReal    _) = return $ Ty [] REAL
 alg (LitInt     _) = return $ Ty [] INT
 alg (LitArray  []) = throwError $ 
@@ -142,14 +154,15 @@ inferTyDist ::
   (MonadTyCtx m) =>
   Distribution SourcePos ->
   m (Distribution Ty) 
-inferTyDist (Distribution dname args loc bd) = do
+inferTyDist (Distribution dname args loc (_, br_sh)) = do
   fty <- lookupDist dname
   -- annotated expressions passed as arguments 
   arg_ann <- traverse inferTy args
   let arg_tys = map cofreeHead arg_ann
   case unify arg_tys fty of
     Left _ -> throwError $ Blame loc $ BadDistr dname arg_tys fty
-    Right ret -> return (Distribution dname arg_ann ret bd)
+    Right (bd, ret) -> return $
+      Distribution dname arg_ann ret (V.length <$> bd, br_sh)
 
 stmtHandler ::
   (MonadError TypeError m) =>
@@ -168,25 +181,26 @@ checkModelStmt (ValStmt name ty val) = stmtHandler name $ do
   let ty' = cofreeHead val'
   let err = ExpectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
-  insertTy name ty
+  insertTy name Val ty 
   return (ValStmt name ty val')
 checkModelStmt (ParamStmt name ty dist bij) = stmtHandler name $ do
-  Distribution dname args ty' _ <- inferTyDist dist
+  Distribution dname args ty' (bd, _) <- inferTyDist dist
   let err = ExpectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
-  insertTy name ty
-  let bd = rank ty - rank ty' 
+  insertTy name Param ty
+  -- is it ty' - ty or ty - ty'
+  let br_sh = shDiff (shape ty') (shape ty)
   let bij' = fmap (const ty') <$> bij
-  let dist' = Distribution dname args ty (Just bd)
+  let dist' = Distribution dname args ty (bd, br_sh)
   return (ParamStmt name ty dist' bij')
 checkModelStmt (ObsStmt name dist) = stmtHandler name $ do
-  Distribution dname args ty' _ <- inferTyDist dist
+  Distribution dname args ty' (bd, _) <- inferTyDist dist
   ty <- lookupVar name
   let err = ExpectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
-  insertTy name ty
-  let bd = rank ty - rank ty' 
-  let dist' = Distribution dname args ty (Just bd)
+  insertTy name Data ty
+  let br_sh =  shDiff (shape ty')  (shape ty) 
+  let dist' = Distribution dname args ty (bd, br_sh)
   return (ObsStmt name dist')
 
 checkModel ::

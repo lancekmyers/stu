@@ -61,7 +61,6 @@ parseFile fname = do
 
 main' :: FilePath -> ExceptT Err IO ()
 main' fname = do
-  -- fname <- getFileName
   prog@(decls, model) <- parseFile fname
   let ctx = buildCtx decls
   (model', _) <- withExceptT pretty $ runStateT (checkModel model) ctx
@@ -102,7 +101,7 @@ main = do
   when (not file_exists) (error "Given file does not exist.")
 
   runExceptT (main' fname') >>= \case 
-    Left err ->  error (show err)
+    Left err -> print err
     Right foo -> return ()
 
   {-
@@ -121,16 +120,19 @@ main = do
   -}
 
 buildCtx :: [Decl] -> Ctx
-buildCtx decls = Ctx vars funs dists knownCards
+buildCtx decls = Ctx vars funs dists knownCards varDoms
   where
     vars :: Map Text Ty
     vars = M.fromList $ mapMaybe go decls
       where
         go (DataDecl name ty) = Just (name, ty)
         go _ = Nothing
+    varDoms = M.fromList $ mapMaybe go decls
+      where
+        go (DataDecl name ty) = Just (name, Data)
+        go _ = Nothing
 
     scalarFunTy = FunctionTy 0 [("x", Ty [] REAL)] (Ty [] REAL)
-
     funs :: Map Text FunctionTy
     funs =
       M.fromList
@@ -141,13 +143,27 @@ buildCtx decls = Ctx vars funs dists knownCards
           ("ln", scalarFunTy),
           ("sqrt", scalarFunTy)
         ]
-
-    locScale = FunctionTy 0 [("loc", Ty [] REAL), ("scale", Ty [] REAL)] (Ty [] REAL)
+    real = Ty [] REAL
+    locScale = FunctionTy 0 [("loc", real), ("scale", real)] real
     dists :: Map Text FunctionTy
     dists =
       M.fromList
         [ ("Normal", locScale),
-          ("HalfNormal", locScale)
+          ("HalfNormal", locScale),
+          ("Bernoulli", FunctionTy 0 [("prob", real)] (Ty [] INT)),
+          ("Beta", FunctionTy 0 [("alpha", real), ("beta", real)] (real)),
+          ("Gamma", 
+            FunctionTy 0 [("concentration", real), ("rate", real)] (real)),
+          ("MVNormal", FunctionTy 1 
+            [ ("mu", Ty [CardBV 0] REAL)
+            , ("sigma", Ty [CardBV 0, CardBV 0] REAL)
+            ]
+            real),
+          ("MVNormal", FunctionTy 1 
+            [ ("mu", Ty [CardBV 0] REAL)
+            , ("sigma", Ty [CardBV 0] REAL)
+            ] 
+            (Ty [CardBV 0] REAL))
         ]
 
     knownCards :: Set Text

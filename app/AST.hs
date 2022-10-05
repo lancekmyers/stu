@@ -18,7 +18,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Vector
 import GHC.Generics
-import Types (Ty)
+import Types (Ty, Shape)
 
 import Text.Megaparsec.Pos (SourcePos)
 
@@ -39,9 +39,11 @@ instance Show BinOp where
   show Mul = "*"
   show Div = "/"
 
+data VarDomain = Unknown | Param | Data | Val deriving (Eq, Ord, Show)
+
 data ExprF a
   = ArithF BinOp a a
-  | VarF Name
+  | VarF Name VarDomain
   | FunAppF FuncName [a]
   | GatherF a a
   | LitReal Double
@@ -61,7 +63,7 @@ data Distribution ann
       DistName 
       [Expr ann] 
       ann 
-      (Maybe Int) --- batchDims 
+      (Maybe Int, Maybe Shape) --- nbatch_dims, sample_shape
   deriving ()
 
 data BijectorF a  
