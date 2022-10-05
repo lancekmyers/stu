@@ -13,7 +13,7 @@ import Control.Monad.Except
 import Control.Monad.State
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
@@ -29,21 +29,37 @@ import System.FilePath
 import qualified Text.Builder as B
 import Text.Megaparsec (errorBundlePretty, runParser, SourcePos)
 import Types
+import Options.Applicative
 
-clearScreen :: IO ()
-clearScreen = do
-  putStr clearFromCursorToScreenBeginningCode
-  putStr $ setCursorPositionCode 0 0
-  putStrLn "         __       "
-  putStrLn "  _____/ /___  __ "
-  putStrLn " / ___/ __/ / / / "
-  putStrLn "(__  ) /_/ /_/ /  "
-  putStrLn "/____/\\__/\\__,_/"
-  putStrLn ""
+data Options = Options {
+  inFileName :: FilePath, 
+  outFileName :: Maybe FilePath
+}
 
-type Err = Doc ()
+options :: Parser Options 
+options = Options 
+      <$> strOption
+          ( long "model"
+         <> metavar "TARGET"
+         <> help "File containing model to compile" )
+      <*> optional (strOption 
+          ( long "output" 
+          <> short 'o'
+          <> metavar "OUTPUT"
+          <> help "File to write python model to" )
+        )
+      
+
 
 {-
+   "         __       "
+   "  _____/ /___  __ "
+   " / ___/ __/ / / / "
+   "(__  ) /_/ /_/ /  "
+   "/____/\\__/\\__,_/"
+-}
+type Err = Doc ()
+
 getFileName :: ExceptT Err IO String
 getFileName = do
   args <- lift getArgs
@@ -51,73 +67,58 @@ getFileName = do
     [] -> throwError "No file name provided"
     [fname] -> return fname
     _  -> throwError "To many files provided"
--}
-parseFile :: String -> ExceptT Err IO ([Decl], Model SourcePos)
+
+parseFile :: FilePath -> ExceptT Err IO (Program SourcePos)
 parseFile fname = do
   fcontents <- lift $ TIO.readFile fname
   case runParser parseProgram fname fcontents of
     Left err -> throwError . pretty $ errorBundlePretty err
-    Right prog -> return prog
+    Right (decls, m) -> return $ Program decls m
 
-main' :: FilePath -> ExceptT Err IO ()
-main' fname = do
-  prog@(decls, model) <- parseFile fname
+checkProgram :: Monad m => Program SourcePos -> ExceptT Err m (Program Ty)
+checkProgram (Program decls model) = do 
   let ctx = buildCtx decls
-  (model', _) <- withExceptT pretty $ runStateT (checkModel model) ctx
-  let py_src = B.run $ writeProg (Program decls model') 
-    -- withExceptT pretty $ evalStateT (cgProg prog) ctx
-  lift $ TIO.writeFile (fname -<.> ".py") py_src
-  return ()
+  (model, ctx) <- withExceptT pretty $ runStateT (checkModel model) ctx
+  return $ Program decls model 
 
--- putStrLn "Done!"
-
-action :: Event -> IO ()
-action (Modified path _ _) = do
-  putStrLn path
-  x <- runExceptT (main' path)
-  case x of
-    Left err -> clearScreen >> putDoc err >> putStrLn ""
-    Right () -> do
-      clearScreen
-      putStrLn $ "Successfully compiled " ++ path
-action _ = pure ()
-
-main :: IO ()
-main = do
-  putStrLn "Welcome!"
-  fname <-
-    getArgs >>= \case
-      [fname] -> return fname
-      [] -> error "No file name provided"
-      _ -> error "To many files provided"
-
+validateFileNames :: Options -> ExceptT Err IO (FilePath, FilePath) 
+validateFileNames opts = do 
+  let fname = inFileName opts
+  let out_fname = fromMaybe (fname -<.> ".py") (outFileName opts)
+  
   case takeExtension fname of
     ".stu" -> pure ()
-    ext -> error $ "Expected a '.stu' file, got: '" ++ ext ++ "'"
+    ext -> throwError $ "Expected a '.stu' file, got: '" <> pretty ext <> "'"
 
-  fname' <- canonicalizePath fname
+  file_exists <- liftIO $ doesFileExist fname
+  when (not file_exists) (throwError $ "File does not exist")
 
-  file_exists <- doesFileExist fname'
-  when (not file_exists) (error "Given file does not exist.")
+  return (fname, out_fname)
 
-  runExceptT (main' fname') >>= \case 
-    Left err -> print err
-    Right foo -> return ()
+main' :: Options -> ExceptT Err IO ()
+main' opts = do 
+  (fname, out_fname) <- validateFileNames opts
 
-  {-
-  let dir = takeDirectory fname
-  let pred = \event -> takeExtension (eventPath event) == ".stu"
-  -- let pred =  \event -> (eventPath event) `equalFilePath` fname
+  liftIO . putStrLn $ "Compiling " ++ fname
   
-  withManager $ \mgr -> do
-    watchDir
-      mgr
-      dir
-      pred
-      action
+  prog <- parseFile fname >>= checkProgram
+  
+  let py_src = B.run $ writeProg prog
+  lift $ TIO.writeFile out_fname py_src  
+  liftIO . putStrLn $ "Compiled model written to " ++ out_fname
 
-    forever $ threadDelay 1000000
-  -}
+main :: IO ()
+main = mainHandled =<< execParser opts
+  where
+    mainHandled opts =
+      runExceptT (main' opts) >>= \case 
+        Left err -> print err
+        Right foo -> return ()
+    opts = info (options <**> helper)
+      ( fullDesc
+     <> progDesc "Compile a stu model"
+     <> header "stu" )
+
 
 buildCtx :: [Decl] -> Ctx
 buildCtx decls = Ctx vars funs dists knownCards varDoms
