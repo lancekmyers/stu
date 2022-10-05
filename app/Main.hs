@@ -103,9 +103,11 @@ main' opts = do
   
   prog <- parseFile fname >>= checkProgram
   
+  liftIO . putStrLn $ "Succesfully compiled " ++ fname
+
   let py_src = B.run $ writeProg prog
   lift $ TIO.writeFile out_fname py_src  
-  liftIO . putStrLn $ "Compiled model written to " ++ out_fname
+  liftIO . putStrLn $ "Output written to " ++ out_fname
 
 main :: IO ()
 main = mainHandled =<< execParser opts
