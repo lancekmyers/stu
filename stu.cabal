@@ -1,4 +1,4 @@
-cabal-version:      2.4
+cabal-version:      3.4
 name:               stu
 version:            0.1.0.0
 
@@ -21,32 +21,13 @@ maintainer:         lancekmyers@gmail.com
 -- category:
 extra-source-files: CHANGELOG.md
 
-extra-include-dirs: 
---    /usr/local/Cellar/llvm-13/13/lib/llvm-13/include
-    /usr/local/opt/llvm@13/include
-extra-lib-dirs: 
---    /usr/local/Cellar/llvm-13/13/lib/llvm-13/lib
-    /usr/local/opt/llvm@13/lib
-
-
-executable stu
-    main-is:          Main.hs
-
+library 
     default-extensions:      
         OverloadedStrings, LambdaCase
 
-    -- Modules included in this executable, other than Main.
-    other-modules:
+    exposed-modules:
         Parser, AST, CodeGen, Analysis, Types 
 
-    extra-include-dirs: 
-        -- /usr/local/Cellar/llvm-13/13/lib/llvm-13/include
-        /usr/local/opt/llvm@13/include
-    extra-lib-dirs: 
-        -- /usr/local/Cellar/llvm-13/13/lib/llvm-13/lib
-        /usr/local/opt/llvm@13/lib
-
-    -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:
         base ^>=4.16.1.0,
@@ -69,6 +50,54 @@ executable stu
         optparse-applicative == 0.17.*, 
         comonad == 5.*
 
+    hs-source-dirs:   app
+    default-language: Haskell2010
+
+
+executable stu
+    main-is:          Main.hs
+
+    default-extensions:      
+        OverloadedStrings, LambdaCase
+
+    -- Modules included in this executable, other than Main.
+    other-modules:
+        Parser, AST, CodeGen, Analysis, Types 
+
+    -- LANGUAGE extensions used by modules in this package.
+    -- other-extensions:
+    build-depends:
+        base ^>=4.16.1.0,
+        megaparsec == 9.2.*,
+        parser-combinators == 1.3.*,
+        text == 2.0.*, 
+        text-builder == 0.6.7, 
+        containers == 0.6.*, 
+        mtl >= 2.2,
+        recursion-schemes == 5.2.*, 
+        vector >= 0.12, 
+        prettyprinter == 1.7.*,
+        prettyprinter-ansi-terminal == 1.1.*, 
+        ansi-terminal >=0.4,
+        fsnotify == 0.3.*, 
+        filepath >= 1.3, 
+        directory >=1.2.7,
+        free == 5.*,
+        repa == 3.4.*, 
+        optparse-applicative == 0.17.*, 
+        comonad == 5.*,
+        stu
+
 
     hs-source-dirs:   app
     default-language: Haskell2010
+
+
+test-suite test-foo
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Suite.hs
+  build-depends:       base ^>=4.16.1.0
+                     , hspec ^>= 2.7.4
+                     , QuickCheck >= 2.11
+                     , stu

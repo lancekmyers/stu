@@ -21,10 +21,7 @@ import qualified Data.Text.IO as TIO
 import Parser (parseProgram)
 import Prettyprinter
 import Prettyprinter.Render.Text (putDoc)
-import System.Console.ANSI.Codes -- (clearFromCursorToScreenBeginningCode)
 import System.Directory
-import System.Environment (getArgs)
-import System.FSNotify
 import System.FilePath
 import qualified Text.Builder as B
 import Text.Megaparsec (errorBundlePretty, runParser, SourcePos)
@@ -60,13 +57,6 @@ options = Options
 -}
 type Err = Doc ()
 
-getFileName :: ExceptT Err IO String
-getFileName = do
-  args <- lift getArgs
-  case args of
-    [] -> throwError "No file name provided"
-    [fname] -> return fname
-    _  -> throwError "To many files provided"
 
 parseFile :: FilePath -> ExceptT Err IO (Program SourcePos)
 parseFile fname = do
