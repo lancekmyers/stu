@@ -75,10 +75,17 @@ check_shDiff = describe "shape difference: " $ do
 -- check_unify :: SpecWith _
 check_unify = describe "unification" $ do 
   it "desc" $ do 
-    -- unify :: [Ty] -> FunctionTy -> Either TyErr (Maybe Shape, Ty)
     property $ \tys' ty ->  
       let 
         tys = tys'
+        args = (\t -> ("", t)) <$> tys
+      in (unify tys (FunctionTy 0 args ty)) == (Right (Nothing, ty)) 
+
+  it "desc2" $ do 
+    property $ \prefix' tys' ty ->  
+      let 
+        prefix = mkShape prefix' 
+        tys = [ Ty (prefix <> sh) el | (Ty sh el) <- tys']
         args = (\t -> ("", t)) <$> tys
       in (unify tys (FunctionTy 0 args ty)) == (Right (Nothing, ty)) 
 
@@ -88,4 +95,5 @@ check_unify = describe "unification" $ do
         Ty sh elt = ty 
         scalarFn = FunctionTy 0 [("x", Ty [] elt)] (Ty [] elt)
       in (unify [ty] scalarFn) == (
-        case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty)))
+        case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty))
+      )
