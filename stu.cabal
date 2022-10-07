@@ -100,4 +100,6 @@ test-suite test-foo
   build-depends:       base ^>=4.16.1.0
                      , hspec ^>= 2.7.4
                      , QuickCheck >= 2.11
+                     , vector
+                     , text
                      , stu

@@ -78,14 +78,17 @@ broadcastsTo :: Ty -> Ty -> Bool
 broadcastsTo (Ty sh el) (Ty sh' el') = (el == el') && (shapeBroadcastsTo sh sh')
 
 shapeBroadcastsTo :: Shape -> Shape -> Bool
-shapeBroadcastsTo sh sh' = and $ V.zipWith go (V.reverse sh) (V.reverse sh')
+shapeBroadcastsTo sh sh' 
+  | length sh > length sh' = False 
+  | otherwise = and $ V.zipWith go (V.reverse sh) (V.reverse sh')
   where
+    n = length sh
     go (CardN 1) _ = True
     go x y = x == y
 
 shDiff :: Shape -> Shape -> Maybe Shape 
-shDiff sh sh' = 
-  if V.length sh < V.length sh' 
+shDiff sh' sh = 
+  if V.length sh <= V.length sh'
   then Just diff 
   else Nothing 
   where 
@@ -108,7 +111,7 @@ instance Pretty FunctionTy where
 
 -- TODO: rename to UnifErr
 data TyErr = TyErr String
-  deriving (Show)
+  deriving (Eq, Show)
 
 type CardMap = Vector (Maybe Card)
 
@@ -122,6 +125,7 @@ cardUnify (c, (CardBV i)) = do
   case cmap V.! i of
     Nothing -> put $ cmap V.// [(i, Just c)]
     Just c' -> if c == c' then pure () else throwError (TyErr "")
+cardUnify (c, c') = if c == c' then pure () else throwError (TyErr "ahhh")
 
 shapeUnify ::
   (MonadError TyErr m) =>
@@ -135,7 +139,7 @@ shapeUnify (sh_given, sh_expected) = do
 
 go (x, y)
   | x == y = pure ()
-  | otherwise = throwError TyErr
+  | otherwise = throwError (TyErr "unequal") 
 
 substitute :: CardMap -> Ty -> Ty
 substitute cmap (Ty sh elty) = Ty sh' elty
@@ -147,6 +151,7 @@ substitute cmap (Ty sh elty) = Ty sh' elty
 
 -- | unifies function type with arguments, returns error or function return type and broadcasting shape 
 unify :: [Ty] -> FunctionTy -> Either TyErr (Maybe Shape, Ty)
+unify [] (FunctionTy _ [] ty) = Right (Nothing, ty)
 unify tys (FunctionTy n args ret) = do
   let err x = Left (TyErr x)
 
