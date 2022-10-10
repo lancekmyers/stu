@@ -64,14 +64,16 @@ cardMatches x (CardN 1) = True
 cardMatches x y = x == y
 
 broadcast :: Shape -> Shape -> Maybe Shape
-broadcast sh1 sh2 = do
-  let min_rank = V.length sh1 `min` V.length sh2
-  let sh1' = V.take (length sh1 - min_rank) sh1
-  let sh2' = V.take (length sh2 - min_rank) sh2
-  let prefix = sh1' <> sh2'
-  let suffix_matches = and (V.zipWith cardMatches sh1' sh2')
-  when (not suffix_matches) Nothing
-  return $ prefix <> sh1'
+broadcast xs ys = mappend prefix <$> zs 
+  where 
+    go (CardN 1) y = Just y 
+    go x (CardN 1) = Just x
+    go x y = if x == y then Just x else Nothing
+    prefix 
+      | (V.length xs > V.length ys) = V.take (V.length xs - V.length ys) xs 
+      | otherwise = V.take (V.length ys - V.length xs) ys 
+    zs = sequence . V.reverse $ V.zipWith go (V.reverse xs) (V.reverse ys)
+
 
 -- | Does sh broadcast to sh'?
 broadcastsTo :: Ty -> Ty -> Bool
