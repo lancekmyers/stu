@@ -298,8 +298,10 @@ cgPriorPred (Program _ (Model xs)) = PyDef Nothing "prior_pred" ["key", "sample_
     ]
   where 
     
-    -- obser_data = map_jnp_array 
-    constData = PyAssign "data" ("dict" @@ ["inf_obj" !. "constant_data"])
+    map_jnp_array x = PyIdent ["jax", "tree_util"] "tree_map" @@ 
+      [PyIdent ["jnp"] "array", x]
+    constData = PyAssign "data" $ map_jnp_array 
+      ("dict" @@ ["inf_obj" !. "constant_data"])
     emptyParams = PyAssign "params" (PyDict [])
 
     params = mapMaybe (\case (ParamStmt x _ _ _) -> Just x; _ -> Nothing) xs 
