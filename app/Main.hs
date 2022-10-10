@@ -129,12 +129,13 @@ buildCtx decls = Ctx vars funs dists knownCards varDoms
     funs :: Map Text FunctionTy
     funs =
       M.fromList
-        [ ("sin", scalarFunTy),
-          ("cos", scalarFunTy),
-          ("tan", scalarFunTy),
-          ("exp", scalarFunTy),
-          ("ln", scalarFunTy),
-          ("sqrt", scalarFunTy)
+        [ ("sin",  scalarFunTy),
+          ("cos",  scalarFunTy),
+          ("tan",  scalarFunTy),
+          ("exp",  scalarFunTy),
+          ("ln",   scalarFunTy),
+          ("sqrt", scalarFunTy), 
+          ("mean", FunctionTy 1 [("x", Ty [CardBV 0] REAL)] real)
         ]
     real = Ty [] REAL
     locScale = FunctionTy 0 [("loc", real), ("scale", real)] real
@@ -144,6 +145,7 @@ buildCtx decls = Ctx vars funs dists knownCards varDoms
         [ ("Normal", locScale),
           ("HalfNormal", locScale),
           ("Bernoulli", FunctionTy 0 [("prob", real)] (Ty [] INT)),
+          ("Poisson", FunctionTy 0 [("mu", real)] (Ty [] INT)),
           ("Beta", FunctionTy 0 [("alpha", real), ("beta", real)] (real)),
           ("Gamma", 
             FunctionTy 0 [("concentration", real), ("rate", real)] (real)),
