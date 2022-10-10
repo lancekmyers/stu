@@ -74,7 +74,6 @@ broadcast xs ys = mappend prefix <$> zs
       | otherwise = V.take (V.length ys - V.length xs) ys 
     zs = sequence . V.reverse $ V.zipWith go (V.reverse xs) (V.reverse ys)
 
-
 -- | Does sh broadcast to sh'?
 broadcastsTo :: Ty -> Ty -> Bool
 broadcastsTo (Ty sh el) (Ty sh' el') = (el == el') && (shapeBroadcastsTo sh sh')
@@ -89,13 +88,11 @@ shapeBroadcastsTo sh sh'
     go x y = x == y
 
 shDiff :: Shape -> Shape -> Maybe Shape 
-shDiff sh' sh = 
-  if V.length sh <= V.length sh'
-  then Just diff 
-  else Nothing 
+shDiff sh' sh = if n > 0 then Just prefix else Nothing
   where 
-    diff = V.drop n sh'
-    n  = V.length sh
+    larger = if (V.length sh < V.length sh') then sh' else sh 
+    n = abs $ V.length sh - V.length sh'
+    prefix = V.take n larger
 
 data FunctionTy
   = FunctionTy Int [(Text, Ty)] Ty
