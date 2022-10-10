@@ -184,7 +184,7 @@ cgExpr = cata (go . proj)
     go (VarF name Data)  = PyGet (PyIdent [] "data") (PyStr name)
     go (VarF name Param) = PyIdent [] (name <> "_tr")
     go (FunAppF f xs) = jnp f @@ xs
-    go (GatherF xs is) = jnp "gather" @@ [xs, is]
+    go (GatherF xs is) = PyGet xs is -- jnp "gather" @@ [xs, is]
 
 
 sample :: Maybe Shape -> PyExp -> PyExp 
