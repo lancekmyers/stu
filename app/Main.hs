@@ -20,8 +20,7 @@ import Data.Text (Text)
 import qualified Data.Text.IO as TIO
 import Parser (parseProgram)
 import Prettyprinter
--- import Prettyprinter.Render.Text (putDoc)
-import Prettyprinter.Render.Terminal (AnsiStyle,putDoc)
+import Prettyprinter.Render.Terminal (AnsiStyle, putDoc, bold, color, Color(..))
 import System.Directory ( doesFileExist )
 import System.FilePath
 import qualified Text.Builder as B
@@ -29,25 +28,28 @@ import Text.Megaparsec (errorBundlePretty, runParser, SourcePos)
 import Types
 import Options.Applicative
 
-data Options = Options {
-  inFileName :: FilePath, 
-  outFileName :: Maybe FilePath
-}
+data Options
+  = BuildOptions 
+    { inFileName' :: FilePath
+    , outFileName' :: Maybe FilePath  
+    }
+  | CheckOptions 
+    { inFileName' :: FilePath }
 
-options :: Parser Options 
-options = Options 
-      <$> strOption
-          ( long "model"
-         <> metavar "TARGET"
-         <> help "File containing model to compile" )
-      <*> optional (strOption 
-          ( long "output" 
-          <> short 'o'
-          <> metavar "OUTPUT"
-          <> help "File to write python model to" )
-        )
-      
-
+options :: Parser Options
+options = subparser $ 
+  (command "build" (info buildOptions $ progDesc "Build a stu model"))
+  <> (command "check" (info checkOptions $ progDesc "Check a stu model without building"))
+  where 
+    buildOptions = BuildOptions 
+      <$> (argument str (metavar "MODEL" <> help "File containing model to compile"))
+      <*> optional ( strOption (long "output" 
+            <> short 'o'
+            <> metavar "OUTPUT"
+            <> help "File to write python model to" )
+          )
+    checkOptions = CheckOptions 
+      <$> (argument str (metavar "MODEL" <> help "File containing model to compile"))
 
 {-
    "         __       "
@@ -72,10 +74,10 @@ checkProgram (Program decls model) = do
   (model, ctx) <- withExceptT prettyError $ runStateT (checkModel model) ctx
   return $ Program decls model 
 
-validateFileNames :: Options -> ExceptT Err IO (FilePath, FilePath) 
-validateFileNames opts = do 
-  let fname = inFileName opts
-  let out_fname = fromMaybe (fname -<.> ".py") (outFileName opts)
+validateFileNames :: (FilePath, Maybe FilePath) -> ExceptT Err IO (FilePath, FilePath) 
+validateFileNames (inFileName, outFileName) = do 
+  let fname = inFileName 
+  let out_fname = fromMaybe (fname -<.> ".py") outFileName
   
   case takeExtension fname of
     ".stu" -> pure ()
@@ -87,18 +89,28 @@ validateFileNames opts = do
   return (fname, out_fname)
 
 main' :: Options -> ExceptT Err IO ()
-main' opts = do 
-  (fname, out_fname) <- validateFileNames opts
+main' (BuildOptions inFileName outFileName) = do 
+  (fname, out_fname) <- validateFileNames (inFileName, outFileName)
 
-  liftIO . putStrLn $ "Compiling " ++ fname
+  liftIO . putDoc $ "Checking  " <> (annotate bold . pretty $ fname) <> line
   
   prog <- parseFile fname >>= checkProgram
   
-  liftIO . putStrLn $ "Succesfully compiled " ++ fname
+  liftIO . putDoc $ (annotate (color Green) $ "Success") <+> 
+    "checked" <+> pretty fname <> line
 
   let py_src = B.run $ writeProg prog
   lift $ TIO.writeFile out_fname py_src  
-  liftIO . putStrLn $ "Output written to " ++ out_fname
+  liftIO . putDoc $ indent 2 $ "compiled output written to" <+> pretty out_fname
+main' (CheckOptions inFileName) = do 
+  (fname, _) <- validateFileNames (inFileName, Nothing)
+
+  liftIO . putDoc $ "Checking  " <> (annotate bold . pretty $ fname) <> line
+  
+  prog <- parseFile fname >>= checkProgram  
+  
+  liftIO . putDoc $ (annotate (color Green) $ "Success") <+> 
+    "checked" <+> pretty fname <> line
 
 main :: IO ()
 main = mainHandled =<< execParser opts
