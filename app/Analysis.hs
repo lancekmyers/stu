@@ -102,7 +102,7 @@ inferTy = para (go . runIdentity . getCompose)
       let embed' = embed . Compose . Identity
       let foo = fmap (runIdentity . getCompose . project) . snd <$> exp 
       let exp = fmap (\(ty :< exp) -> ty) <$> foo
-      ty <- catchError (alg exp) (throwError . Blame loc)
+      ty <- catchError (alg exp) (throwError . blame loc)
       baz <- sequence (fmap (\(ty :< exp) -> exp) <$> foo)
       let qux = ((\e -> embed' $ ty :< e) <$> baz) :: ExprF (Cofree ExprF Ty)
       qux' <- annotateVarDomain qux
@@ -232,6 +232,10 @@ data TypeError
   | Blame SourcePos TypeError 
   | OtherErr Text
   deriving (Show)
+
+blame :: SourcePos -> TypeError -> TypeError 
+blame _ (Blame loc x) = Blame loc x 
+blame loc err = Blame loc err
 
 instance Pretty TypeError where
   pretty (IncompatibleShapes sh sh') =
