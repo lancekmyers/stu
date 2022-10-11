@@ -20,8 +20,9 @@ import Data.Text (Text)
 import qualified Data.Text.IO as TIO
 import Parser (parseProgram)
 import Prettyprinter
-import Prettyprinter.Render.Text (putDoc)
-import System.Directory
+-- import Prettyprinter.Render.Text (putDoc)
+import Prettyprinter.Render.Terminal (AnsiStyle,putDoc)
+import System.Directory ( doesFileExist )
 import System.FilePath
 import qualified Text.Builder as B
 import Text.Megaparsec (errorBundlePretty, runParser, SourcePos)
@@ -55,7 +56,7 @@ options = Options
    "(__  ) /_/ /_/ /  "
    "/____/\\__/\\__,_/"
 -}
-type Err = Doc ()
+type Err = Doc AnsiStyle
 
 
 parseFile :: FilePath -> ExceptT Err IO (Program SourcePos)
@@ -68,7 +69,7 @@ parseFile fname = do
 checkProgram :: Monad m => Program SourcePos -> ExceptT Err m (Program Ty)
 checkProgram (Program decls model) = do 
   let ctx = buildCtx decls
-  (model, ctx) <- withExceptT pretty $ runStateT (checkModel model) ctx
+  (model, ctx) <- withExceptT prettyError $ runStateT (checkModel model) ctx
   return $ Program decls model 
 
 validateFileNames :: Options -> ExceptT Err IO (FilePath, FilePath) 
@@ -104,7 +105,7 @@ main = mainHandled =<< execParser opts
   where
     mainHandled opts =
       runExceptT (main' opts) >>= \case 
-        Left err -> print err
+        Left err -> putDoc err
         Right foo -> return ()
     opts = info (options <**> helper)
       ( fullDesc

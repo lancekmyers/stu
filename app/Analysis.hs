@@ -27,6 +27,7 @@ import Text.Megaparsec.Pos (SourcePos (..), unPos)
 import Control.Comonad (extract)
 import Control.Comonad.Identity (Identity (runIdentity, Identity))
 import Data.Functor.Compose (Compose(getCompose, Compose))
+import Prettyprinter.Render.Terminal
 
 data Ctx = Ctx
   { vars :: Map Text Ty,
@@ -237,89 +238,92 @@ blame :: SourcePos -> TypeError -> TypeError
 blame _ (Blame loc x) = Blame loc x 
 blame loc err = Blame loc err
 
-instance Pretty TypeError where
-  pretty (IncompatibleShapes sh sh') =
+bad = annotate (color Red)
+
+prettyError :: TypeError -> Doc AnsiStyle
+prettyError (IncompatibleShapes sh sh') =
     vsep
       [ "The shape",
         indent 2 $ prettyShape sh,
         "Does not broadcast with",
         indent 2 $ prettyShape sh'
       ]
-  pretty (BadFunApp fname given fty) =
+prettyError (BadFunApp fname given fty) =
     vsep
-      [ "The function" <+> pretty fname <+> "has type",
+      [ "The function" <+> (bad $ pretty fname) <+> "has type",
         indent 2 $ pretty fty,
         "But was provided arguments of type",
         indent 2 $ tupled $ pretty <$> given
       ]
-  pretty (BadDistr dname given fty) =
+prettyError (BadDistr dname given fty) =
     vsep
-      [ "The distribution" <+> pretty dname <+> "has type",
+      [ "The distribution" <+> (bad $ pretty dname) <+> "has type",
         indent 2 $ pretty fty,
         "But was provided arguments of type",
         indent 2 $ tupled $ pretty <$> given
       ]
-  pretty (BadStmt stmt err) =
+prettyError (BadStmt stmt err) =
     vsep
       [ "An error occured in the statement of" <+> pretty stmt,
-        indent 2 $ pretty err
+        indent 2 $ prettyError err
       ]
-  pretty (BinOpShapeErr binop sh sh') =
+prettyError (BinOpShapeErr binop sh sh') =
     vsep
-      [ "In application of" <+> viaShow binop,
-        indent 2 $ pretty $ IncompatibleShapes sh sh'
+      [ "In application of" <+> (bad $ viaShow binop),
+        indent 2 $ prettyError $ IncompatibleShapes sh sh'
       ]
-  pretty (BinOpElTyErr binop e e') =
+prettyError (BinOpElTyErr binop e e') =
     vsep
-      [ "In application of" <+> viaShow binop,
+      [ "In application of" <+> (bad $ viaShow binop),
         "The left hand side has elements of type",
-        indent 2 $ pretty e,
+        indent 2 $ annotate bold $ pretty e,
         "While the right hand side has elements of type",
-        indent 2 $ pretty e'
+        indent 2 $ annotate bold $ pretty e'
       ]
-  pretty (InvalidGather t1 t2) =
+prettyError (InvalidGather t1 t2) =
     vsep
       [ "Invalid Gather.",
-        "Gather expects as its second argument an array of indices into thee first array",
+        "Gather expects as its second argument an array of indices into the first array",
         "The first argument has type",
         indent 2 $ pretty t1,
+        "The second argument has type",
         indent 2 $ pretty t2
       ]
-  pretty (ExpectedGot t1 t2) =
+prettyError (ExpectedGot t1 t2) =
     vsep
       [ "The compiler was expecting an expression of type",
         indent 2 $ pretty t1,
         "However, it got an expression of type",
-        indent 2 $ pretty t2
+        indent 2 . bad $ pretty t2
       ]
-  pretty (UnBoundFunctionIdent fname []) =
-    "There is no known function" <+> pretty fname
-  pretty (UnBoundFunctionIdent fname near) =
+prettyError (UnBoundFunctionIdent fname []) =
+    "There is no known function" <+> (bad $ pretty fname)
+prettyError (UnBoundFunctionIdent fname near) =
     vsep
-      [ "There is no known function" <+> pretty fname,
+      [ "There is no known function" <+> (bad $ pretty fname),
         "Did you mean one of the following?",
         indent 2 . vsep $ ("•" <+>) . pretty <$> near
       ]
-  pretty (UnBoundDistIdent fname []) =
-    "There is no known distribution" <+> pretty fname
-  pretty (UnBoundDistIdent fname near) =
+prettyError (UnBoundDistIdent fname []) =
+    "There is no known distribution" <+> (bad $ pretty fname)
+prettyError (UnBoundDistIdent fname near) =
     vsep
-      [ "There is no known distribution" <+> pretty fname,
+      [ "There is no known distribution" <+> (bad $ pretty fname),
         "Did you mean one of the following?",
         indent 2 . vsep $ ("•" <+>) . pretty <$> near
       ]
-  pretty (UnBoundVarIdent fname []) =
-    "There is no known variable" <+> pretty fname
-  pretty (UnBoundVarIdent fname near) =
+prettyError (UnBoundVarIdent fname []) =
+    "There is no known variable" <+> (bad $ pretty fname)
+prettyError (UnBoundVarIdent fname near) =
     vsep
-      [ "There is no known variable" <+> pretty fname,
+      [ "There is no known variable" <+> (bad $ pretty fname),
         "Did you mean one of the following?",
         indent 2 . vsep $ ("•" <+>) . pretty <$> near
       ]
-  pretty (NonHomogenousArrayLit tys) = "Nonhomogenous array literal"
-  pretty (OtherErr txt) = pretty txt
+prettyError (NonHomogenousArrayLit tys) = "Nonhomogenous array literal"
+prettyError (OtherErr txt) = pretty txt
 
-  pretty (Blame (SourcePos _ line col) err) = vsep 
+prettyError (Blame (SourcePos _ line col) err) = vsep 
     [ hsep ["On line",  pretty $ unPos line, "column", pretty $ unPos col] 
-    , indent 2 $ pretty err 
+    , indent 2 $ prettyError err 
     ]
