@@ -18,6 +18,7 @@ import qualified Data.Map.Strict as M
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Vector as V
 import Prettyprinter
 import Types
@@ -28,6 +29,7 @@ import Control.Comonad (extract)
 import Control.Comonad.Identity (Identity (runIdentity, Identity))
 import Data.Functor.Compose (Compose(getCompose, Compose))
 import Prettyprinter.Render.Terminal
+import Data.Maybe (fromMaybe)
 
 data Ctx = Ctx
   { vars :: Map Text Ty,
@@ -238,15 +240,44 @@ blame :: SourcePos -> TypeError -> TypeError
 blame _ (Blame loc x) = Blame loc x 
 blame loc err = Blame loc err
 
-bad = annotate (color Red)
+bad = emph . annotate (color Red)
+good =  emph . annotate (color Green)
+emph = annotate bold
+
+prettyShapeError :: V.Vector Card -> V.Vector Card -> (Doc AnsiStyle, Doc AnsiStyle)
+prettyShapeError xs ys = (xs', ys') 
+  where 
+    prefix :: V.Vector (Doc AnsiStyle)
+    prefix = pretty <$> fromMaybe [] (shDiff xs ys)
+    n = V.length xs `min` V.length ys 
+    
+    xsPrefix = if (V.length xs > V.length ys) then prefix else []
+    ysPrefix = if (V.length ys > V.length xs) then prefix else []
+
+    xsSuffix = V.reverse . V.take n . V.reverse $ xs
+    ysSuffix = V.reverse . V.take n . V.reverse $ ys
+
+    prettyCards = V.zipWith go xsSuffix ysSuffix 
+
+    xs' = tupled . V.toList $ xsPrefix <> (fst <$> prettyCards)
+    ys' = tupled . V.toList $ ysPrefix <> (snd <$> prettyCards)
+
+    go x@(CardN 1) y = (good $ pretty x, good $ pretty y) 
+    go x y@(CardN 1) = (good $ pretty x, good $ pretty y) 
+    go x y = if x == y 
+      then (good $ pretty x, good $ pretty y) 
+      else (bad  $ pretty x, bad  $ pretty y) 
+
+
 
 prettyError :: TypeError -> Doc AnsiStyle
-prettyError (IncompatibleShapes sh sh') =
-    vsep
+prettyError (IncompatibleShapes sh1 sh2) =
+  let (sh1', sh2') = prettyShapeError sh1 sh2 
+  in vsep
       [ "The shape",
-        indent 2 $ prettyShape sh,
+        indent 2 sh1',
         "Does not broadcast with",
-        indent 2 $ prettyShape sh'
+        indent 2 sh2'
       ]
 prettyError (BadFunApp fname given fty) =
     vsep
@@ -324,6 +355,7 @@ prettyError (NonHomogenousArrayLit tys) = "Nonhomogenous array literal"
 prettyError (OtherErr txt) = pretty txt
 
 prettyError (Blame (SourcePos _ line col) err) = vsep 
-    [ hsep ["On line",  pretty $ unPos line, "column", pretty $ unPos col] 
+    [ hsep [ "On line",  emph . pretty $ unPos line
+           , "column", emph . pretty $ unPos col] 
     , indent 2 $ prettyError err 
     ]
