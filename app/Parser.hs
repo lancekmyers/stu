@@ -102,20 +102,20 @@ pExpr :: Parser ExprSrc
 pExpr = makeExprParser pTerm operatorTable
 
 pAdd = do 
-  star <- symbol "+" 
   loc <- getSourcePos
+  star <- symbol "+" 
   return $ \x y -> cofree $ loc :< ArithF Add x y  
 pMul = do 
-  star <- symbol "*" 
   loc <- getSourcePos
+  star <- symbol "*" 
   return $ \x y -> cofree $ loc :< ArithF Mul x y  
 pDiv = do 
-  star <- symbol "/" 
   loc <- getSourcePos
+  star <- symbol "/" 
   return $ \x y -> cofree $ loc :< ArithF Div x y  
 pSub = do 
-  star <- symbol "-" 
   loc <- getSourcePos
+  star <- symbol "-" 
   return $ \x y -> cofree $ loc :< ArithF Sub x y  
 
 
