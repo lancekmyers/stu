@@ -17,6 +17,9 @@ mkTy :: (Bool, [Either String Int]) -> Ty
 mkTy (True,  sh) = Ty (mkShape sh) REAL
 mkTy (False, sh) = Ty (mkShape sh) INT
 
+instance Arbitrary Card where 
+    arbitrary = either (CardFV . T.pack) (CardN . abs) <$> arbitrary
+
 instance Arbitrary Ty where 
     arbitrary = mkTy <$> arbitrary
 
@@ -56,20 +59,21 @@ check_shDiff = describe "shape difference: " $ do
       let 
         sh = mkShape sh'
       in 
-        shDiff sh [] == Just sh
+        shDiff sh [] == (if V.length sh == 0 then Nothing else Just sh)
   it "2" $ do 
     property $ \sh' -> 
       let 
         sh = mkShape sh' 
       in 
-        sh `shDiff` sh == Just []
+        sh `shDiff` sh == Nothing
   it "3" $ do 
     property $ \prefix' sh' -> 
       let 
         sh = mkShape sh'
         prefix = mkShape prefix' 
       in 
-        (prefix <> sh) `shDiff` prefix == Just sh
+        (prefix <> sh) `shDiff` sh == 
+          (if V.length prefix == 0 then Nothing else Just prefix)
 
 
 -- check_unify :: SpecWith _
@@ -95,5 +99,15 @@ check_unify = describe "unification" $ do
         Ty sh elt = ty 
         scalarFn = FunctionTy 0 [("x", Ty [] elt)] (Ty [] elt)
       in (unify [ty] scalarFn) == (
+        case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty))
+      )
+
+  it "vecToScalar" $ do 
+    property $ \ty card ->  
+      let 
+        Ty sh elt = ty
+        ty' = Ty (sh <> [card]) elt 
+        funTy = FunctionTy 1 [("x", Ty [CardBV 0] elt)] (Ty [] elt)
+      in (unify [ty'] funTy) == (
         case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty))
       )
