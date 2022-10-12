@@ -151,6 +151,8 @@ substitute cmap (Ty sh elty) = Ty sh' elty
 -- | unifies function type with arguments, returns error or function return type and broadcasting shape 
 unify :: [Ty] -> FunctionTy -> Either TyErr (Maybe Shape, Ty)
 unify [] (FunctionTy _ [] ty) = Right (Nothing, ty)
+unify [] (FunctionTy n xs ty) = Left $ TyErr ""
+unify xs (FunctionTy n [] ty) = Left $ TyErr ""
 unify tys (FunctionTy n args ret) = do
   let err x = Left (TyErr x)
 
