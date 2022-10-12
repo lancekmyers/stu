@@ -281,7 +281,7 @@ prettyError _ (IncompatibleShapes sh1 sh2) =
       ]
 prettyError _ (BadFunApp fname given fty@(FunctionTy _ argTys ret)) 
   | (length argTys /= length given) = vsep 
-    [ "The distribution" <+> (bad $ pretty fname) <+> "was applied to the wrong number of arguments"
+    [ "The function" <+> (bad $ pretty fname) <+> "was applied to the wrong number of arguments"
     , (emph $ pretty fname) <+> "expects" 
       <+> (emph . pretty . length $ argTys) <+> "arguments"
     , "but was provided" 
