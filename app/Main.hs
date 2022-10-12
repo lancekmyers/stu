@@ -61,17 +61,18 @@ options = subparser $
 type Err = Doc AnsiStyle
 
 
-parseFile :: FilePath -> ExceptT Err IO (Program SourcePos)
+parseFile :: FilePath -> ExceptT Err IO (Text, Program SourcePos)
 parseFile fname = do
   fcontents <- lift $ TIO.readFile fname
   case runParser parseProgram fname fcontents of
     Left err -> throwError . pretty $ errorBundlePretty err
-    Right (decls, m) -> return $ Program decls m
+    Right (decls, m) -> return $ (fcontents, Program decls m)
 
-checkProgram :: Monad m => Program SourcePos -> ExceptT Err m (Program Ty)
-checkProgram (Program decls model) = do 
+checkProgram :: Monad m => Text -> Program SourcePos -> ExceptT Err m (Program Ty)
+checkProgram src (Program decls model) = do 
   let ctx = buildCtx decls
-  (model, ctx) <- withExceptT prettyError $ runStateT (checkModel model) ctx
+  (model, ctx) <- withExceptT (prettyError src) $ 
+    runStateT (checkModel model) ctx
   return $ Program decls model 
 
 validateFileNames :: (FilePath, Maybe FilePath) -> ExceptT Err IO (FilePath, FilePath) 
@@ -94,12 +95,13 @@ main' (BuildOptions inFileName outFileName) = do
 
   liftIO . putDoc $ "Checking  " <> (annotate bold . pretty $ fname) <> line
   
-  prog <- parseFile fname >>= checkProgram
+  (src, prog) <- parseFile fname 
+  progChecked <- checkProgram src prog
   
   liftIO . putDoc $ (annotate (color Green) $ "Success") <+> 
     "checked" <+> pretty fname <> line
 
-  let py_src = B.run $ writeProg prog
+  let py_src = B.run $ writeProg progChecked
   lift $ TIO.writeFile out_fname py_src  
   liftIO . putDoc $ indent 2 $ "compiled output written to" <+> pretty out_fname
 main' (CheckOptions inFileName) = do 
@@ -107,7 +109,8 @@ main' (CheckOptions inFileName) = do
 
   liftIO . putDoc $ "Checking  " <> (annotate bold . pretty $ fname) <> line
   
-  prog <- parseFile fname >>= checkProgram  
+  (src, prog) <- parseFile fname 
+  progChecked <- checkProgram src prog
   
   liftIO . putDoc $ (annotate (color Green) $ "Success") <+> 
     "checked" <+> pretty fname <> line

@@ -270,8 +270,8 @@ prettyShapeError xs ys = (xs', ys')
 
 
 
-prettyError :: TypeError -> Doc AnsiStyle
-prettyError (IncompatibleShapes sh1 sh2) =
+prettyError :: T.Text -> TypeError -> Doc AnsiStyle
+prettyError _ (IncompatibleShapes sh1 sh2) =
   let (sh1', sh2') = prettyShapeError sh1 sh2 
   in vsep
       [ "The shape",
@@ -279,31 +279,39 @@ prettyError (IncompatibleShapes sh1 sh2) =
         "Does not broadcast with",
         indent 2 sh2'
       ]
-prettyError (BadFunApp fname given fty) =
-    vsep
-      [ "The function" <+> (bad $ pretty fname) <+> "has type",
-        indent 2 $ pretty fty,
-        "But was provided arguments of type",
-        indent 2 $ tupled $ pretty <$> given
+prettyError _ (BadFunApp fname given fty) = vsep
+    [ "The function" <+> (bad $ pretty fname) <+> "cannot be applied to the given types",
+    indent 2 . vsep $ zipWith expGot argTys given
+    ]
+  where 
+    FunctionTy _ argTys ret = fty
+    expGot (name, expTy) gotTy = vsep 
+      [ "in the argument" <+> emph (pretty name)
+      , indent 2 "expected:" <+> (pretty expTy)
+      , indent 2 "provided:" <+> (pretty gotTy)
       ]
-prettyError (BadDistr dname given fty) =
-    vsep
-      [ "The distribution" <+> (bad $ pretty dname) <+> "has type",
-        indent 2 $ pretty fty,
-        "But was provided arguments of type",
-        indent 2 $ tupled $ pretty <$> given
+prettyError _ (BadDistr dname given fty) = vsep
+    [ "The distribution" <+> (bad $ pretty dname) <+> "cannot be applied to the given types",
+    indent 2 . vsep $ zipWith expGot argTys given
+    ]
+  where 
+    FunctionTy _ argTys ret = fty
+    expGot (name, expTy) gotTy = vsep 
+      [ "in the argument" <+> emph (pretty name)
+      , indent 2 "expected:" <+> (pretty expTy)
+      , indent 2 "provided:" <+> (pretty gotTy)
       ]
-prettyError (BadStmt stmt err) =
+prettyError src (BadStmt stmt err) =
     vsep
       [ "An error occured in the statement of" <+> pretty stmt,
-        indent 2 $ prettyError err
+        prettyError src err
       ]
-prettyError (BinOpShapeErr binop sh sh') =
+prettyError _ (BinOpShapeErr binop sh sh') =
     vsep
       [ "In application of" <+> (bad $ viaShow binop),
-        indent 2 $ prettyError $ IncompatibleShapes sh sh'
+        indent 2 $ prettyError mempty $ IncompatibleShapes sh sh'
       ]
-prettyError (BinOpElTyErr binop e e') =
+prettyError _ (BinOpElTyErr binop e e') =
     vsep
       [ "In application of" <+> (bad $ viaShow binop),
         "The left hand side has elements of type",
@@ -311,7 +319,7 @@ prettyError (BinOpElTyErr binop e e') =
         "While the right hand side has elements of type",
         indent 2 $ annotate bold $ pretty e'
       ]
-prettyError (InvalidGather t1 t2) =
+prettyError _ (InvalidGather t1 t2) =
     vsep
       [ "Invalid Gather.",
         "Gather expects as its second argument an array of indices into the first array",
@@ -320,42 +328,58 @@ prettyError (InvalidGather t1 t2) =
         "The second argument has type",
         indent 2 $ pretty t2
       ]
-prettyError (ExpectedGot t1 t2) =
+prettyError _ (ExpectedGot t1 t2) =
     vsep
       [ "The compiler was expecting an expression of type",
         indent 2 $ pretty t1,
         "However, it got an expression of type",
         indent 2 . bad $ pretty t2
       ]
-prettyError (UnBoundFunctionIdent fname []) =
+prettyError _ (UnBoundFunctionIdent fname []) =
     "There is no known function" <+> (bad $ pretty fname)
-prettyError (UnBoundFunctionIdent fname near) =
+prettyError _ (UnBoundFunctionIdent fname near) =
     vsep
       [ "There is no known function" <+> (bad $ pretty fname),
         "Did you mean one of the following?",
         indent 2 . vsep $ ("•" <+>) . pretty <$> near
       ]
-prettyError (UnBoundDistIdent fname []) =
+prettyError _ (UnBoundDistIdent fname []) =
     "There is no known distribution" <+> (bad $ pretty fname)
-prettyError (UnBoundDistIdent fname near) =
+prettyError _ (UnBoundDistIdent fname near) =
     vsep
       [ "There is no known distribution" <+> (bad $ pretty fname),
         "Did you mean one of the following?",
         indent 2 . vsep $ ("•" <+>) . pretty <$> near
       ]
-prettyError (UnBoundVarIdent fname []) =
+prettyError _ (UnBoundVarIdent fname []) =
     "There is no known variable" <+> (bad $ pretty fname)
-prettyError (UnBoundVarIdent fname near) =
+prettyError _ (UnBoundVarIdent fname near) =
     vsep
       [ "There is no known variable" <+> (bad $ pretty fname),
         "Did you mean one of the following?",
         indent 2 . vsep $ ("•" <+>) . pretty <$> near
       ]
-prettyError (NonHomogenousArrayLit tys) = "Nonhomogenous array literal"
-prettyError (OtherErr txt) = pretty txt
+prettyError _ (NonHomogenousArrayLit tys) = "Nonhomogenous array literal"
+prettyError _ (OtherErr txt) = pretty txt
 
-prettyError (Blame (SourcePos _ line col) err) = vsep 
-    [ hsep [ "On line",  emph . pretty $ unPos line
-           , "column", emph . pretty $ unPos col] 
-    , indent 2 $ prettyError err 
+prettyError src (Blame pos@(SourcePos fname line col) err) = vsep 
+    [ bad "error" <+> (emph . hcat $
+      [pretty fname, ":" , pretty $ unPos line, ":", pretty $ unPos col] 
+      )
+    , prettySrc src pos
+    , indent 2 $ prettyError src err 
     ]
+
+
+prettySrc :: Text -> SourcePos -> Doc AnsiStyle 
+prettySrc src (SourcePos _ line' col') = vsep 
+  [ indent line_width "|"
+  , pretty line <+> "|" <+> srcLine 
+  , (indent line_width "|") <+> pointer
+  ]  
+  where 
+    line = unPos line'
+    col = unPos col'
+    line_width = (+1) . length . show  $ line
+    pointer = indent (col - 1) (bad "^")
+    srcLine = pretty $ T.lines src !! (line - 1)

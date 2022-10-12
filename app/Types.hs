@@ -164,7 +164,7 @@ unify tys (FunctionTy n args ret) = do
   when (not . and $ zipWith (==) (elTy <$> tys) (elTy <$> tys')) (err "1")
 
   -- args must be of rank at least that of the parameters
-  -- when (not . and $ zipWith (>=) ranks ranks') (err "2")
+  when (not . and $ zipWith (>=) ranks ranks') (err "2")
 
   let prefixes = zipWith V.take (zipWith (-) ranks ranks') shs
   let suffixes = zipWith V.drop (zipWith (-) ranks ranks') shs
