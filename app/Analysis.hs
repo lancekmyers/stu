@@ -279,23 +279,37 @@ prettyError _ (IncompatibleShapes sh1 sh2) =
         "Does not broadcast with",
         indent 2 sh2'
       ]
-prettyError _ (BadFunApp fname given fty) = vsep
+prettyError _ (BadFunApp fname given fty@(FunctionTy _ argTys ret)) 
+  | (length argTys /= length given) = vsep 
+    [ "The distribution" <+> (bad $ pretty fname) <+> "was applied to the wrong number of arguments"
+    , (emph $ pretty fname) <+> "expects" 
+      <+> (emph . pretty . length $ argTys) <+> "arguments"
+    , "but was provided" 
+      <+> (emph . pretty . length $ given) <+> "arguments"
+    ]
+  | otherwise = vsep
     [ "The function" <+> (bad $ pretty fname) <+> "cannot be applied to the given types",
     indent 2 . vsep $ zipWith expGot argTys given
     ]
   where 
-    FunctionTy _ argTys ret = fty
     expGot (name, expTy) gotTy = vsep 
       [ "in the argument" <+> emph (pretty name)
       , indent 2 "expected:" <+> (pretty expTy)
       , indent 2 "provided:" <+> (pretty gotTy)
       ]
-prettyError _ (BadDistr dname given fty) = vsep
+prettyError _ (BadDistr dname given fty@(FunctionTy _ argTys ret)) 
+  | (length argTys /= length given) = vsep 
+    [ "The distribution" <+> (bad $ pretty dname) <+> "was applied to the wrong number of arguments"
+    , (emph $ pretty dname) <+> "expects" 
+      <+> (emph . pretty . length $ argTys) <+> "arguments"
+    , "but was prrovided" 
+      <+> (emph . pretty . length $ given) <+> "arguments"
+    ]
+  | otherwise = vsep
     [ "The distribution" <+> (bad $ pretty dname) <+> "cannot be applied to the given types",
     indent 2 . vsep $ zipWith expGot argTys given
     ]
   where 
-    FunctionTy _ argTys ret = fty
     expGot (name, expTy) gotTy = vsep 
       [ "in the argument" <+> emph (pretty name)
       , indent 2 "expected:" <+> (pretty expTy)
