@@ -183,6 +183,8 @@ cgExpr = cata (go . proj)
     go (VarF name Val)   = PyIdent [] (name <> "_val")
     go (VarF name Data)  = PyGet (PyIdent [] "data") (PyStr name)
     go (VarF name Param) = PyIdent [] (name <> "_tr")
+    go (FunAppF "mean" xs) = PyApply "jnp.mean" xs 
+      [("axis", PyNum $ Right (-1))]
     go (FunAppF f xs) = jnp f @@ xs
     go (GatherF xs is) = PyGet xs is -- jnp "gather" @@ [xs, is]
 
@@ -273,8 +275,10 @@ cgPriorPredGo (ValStmt name _ exp) i = PyAssign (name<>"_val") $ cgExpr exp
 cgPriorPredGo (ParamStmt name _ dist _) i = PyBlock 
   [ PyAssign (name <> "_tr") $
       cgDistribution dist !$ 
+        "sample" $ [PyList [], "keys" ! (PyNum $ Right i)]
+  , PyAssign ("params['"<>name<>"']") $ 
+      cgDistribution dist !$ 
         "sample" $ ["sample_shape", "keys" ! (PyNum $ Right i)]
-  , PyAssign ("params['"<>name<>"']") (PyIdent [] $ name <> "_tr")
   ]
 
 

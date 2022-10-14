@@ -150,7 +150,8 @@ buildCtx decls = Ctx vars funs dists knownCards varDoms
           ("tan",  scalarFunTy),
           ("exp",  scalarFunTy),
           ("ln",   scalarFunTy),
-          ("sqrt", scalarFunTy), 
+          ("sqrt", scalarFunTy),
+          ("logit", scalarFunTy), 
           ("mean", FunctionTy 1 [("x", Ty [CardBV 0] REAL)] real)
         ]
     real = Ty [] REAL
@@ -161,6 +162,8 @@ buildCtx decls = Ctx vars funs dists knownCards varDoms
         [ ("Normal", locScale),
           ("HalfNormal", locScale),
           ("Bernoulli", FunctionTy 0 [("prob", real)] (Ty [] INT)),
+          ("Binomial", FunctionTy 0 [("n", Ty [] INT), ("prob", real)] 
+            (Ty [] INT)),
           ("Poisson", FunctionTy 0 [("mu", real)] (Ty [] INT)),
           ("Beta", FunctionTy 0 [("alpha", real), ("beta", real)] (real)),
           ("Gamma", 
