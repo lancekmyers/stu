@@ -29,7 +29,7 @@ import Control.Comonad (extract)
 import Control.Comonad.Identity (Identity (runIdentity, Identity))
 import Data.Functor.Compose (Compose(getCompose, Compose))
 import Prettyprinter.Render.Terminal
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 
 data Ctx = Ctx
   { vars :: Map Text Ty,
@@ -217,6 +217,68 @@ checkModel (Model stmts) = Model <$> forM stmts checkModelStmt
 allSame :: Eq a => [a] -> Bool
 allSame xs = and $ zipWith (==) xs (tail xs)
 
+buildCtx :: [Decl] -> Ctx
+buildCtx decls = Ctx vars funs dists knownCards varDoms
+  where
+    vars :: Map Text Ty
+    vars = M.fromList $ mapMaybe go decls
+      where
+        go (DataDecl name ty) = Just (name, ty)
+        go _ = Nothing
+    varDoms = M.fromList $ mapMaybe go decls
+      where
+        go (DataDecl name ty) = Just (name, Data)
+        go _ = Nothing
+
+    scalarFunTy = FunctionTy 0 [("x", Ty [] REAL)] (Ty [] REAL)
+    funs :: Map Text FunctionTy
+    funs =
+      M.fromList
+        [ ("sin",  scalarFunTy),
+          ("cos",  scalarFunTy),
+          ("tan",  scalarFunTy),
+          ("exp",  scalarFunTy),
+          ("ln",   scalarFunTy),
+          ("sqrt", scalarFunTy),
+          ("logit", scalarFunTy), 
+          ("mean", FunctionTy 1 [("x", Ty [CardBV 0] REAL)] real)
+        ]
+    real = Ty [] REAL
+    locScale = FunctionTy 0 [("loc", real), ("scale", real)] real
+    dists :: Map Text FunctionTy
+    dists =
+      M.fromList
+        [ ("Normal", locScale),
+          ("HalfNormal", locScale),
+          ("Bernoulli", FunctionTy 0 [("prob", real)] (Ty [] INT)),
+          ("Binomial", FunctionTy 0 [("n", Ty [] INT), ("prob", real)] 
+            (Ty [] INT)),
+          ("Poisson", FunctionTy 0 [("mu", real)] (Ty [] INT)),
+          ("Beta", FunctionTy 0 [("alpha", real), ("beta", real)] (real)),
+          ("Gamma", 
+            FunctionTy 0 [("concentration", real), ("rate", real)] (real)),
+          ("MVNormal", FunctionTy 1 
+            [ ("mu", Ty [CardBV 0] REAL)
+            , ("sigma", Ty [CardBV 0, CardBV 0] REAL)
+            ]
+            real),
+          ("MVNormal", FunctionTy 1 
+            [ ("mu", Ty [CardBV 0] REAL)
+            , ("sigma", Ty [CardBV 0] REAL)
+            ] 
+            (Ty [CardBV 0] REAL))
+        ]
+
+    knownCards :: Set Text
+    knownCards = S.fromList $ mapMaybe go decls
+      where
+        go (CardDecl name) = Just name
+        go (FactorDecl name) = Just name
+        go _ = Nothing
+
+
+
+
 -- should move to separate module
 
 data TypeError
@@ -240,8 +302,11 @@ blame :: SourcePos -> TypeError -> TypeError
 blame _ (Blame loc x) = Blame loc x 
 blame loc err = Blame loc err
 
+bad :: Doc AnsiStyle -> Doc AnsiStyle
 bad = emph . annotate (color Red)
+good :: Doc AnsiStyle -> Doc AnsiStyle
 good =  emph . annotate (color Green)
+emph :: Doc AnsiStyle -> Doc AnsiStyle
 emph = annotate bold
 
 prettyShapeError :: V.Vector Card -> V.Vector Card -> (Doc AnsiStyle, Doc AnsiStyle)

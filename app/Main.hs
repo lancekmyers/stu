@@ -5,7 +5,7 @@
 module Main where
 
 import AST
-import Analysis
+import Analysis ( checkModel, prettyError, buildCtx )
 import CodeGen (writeProg, cgModel)
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever, guard)
@@ -126,63 +126,3 @@ main = mainHandled =<< execParser opts
       ( fullDesc
      <> progDesc "Compile a stu model"
      <> header "stu" )
-
-
-buildCtx :: [Decl] -> Ctx
-buildCtx decls = Ctx vars funs dists knownCards varDoms
-  where
-    vars :: Map Text Ty
-    vars = M.fromList $ mapMaybe go decls
-      where
-        go (DataDecl name ty) = Just (name, ty)
-        go _ = Nothing
-    varDoms = M.fromList $ mapMaybe go decls
-      where
-        go (DataDecl name ty) = Just (name, Data)
-        go _ = Nothing
-
-    scalarFunTy = FunctionTy 0 [("x", Ty [] REAL)] (Ty [] REAL)
-    funs :: Map Text FunctionTy
-    funs =
-      M.fromList
-        [ ("sin",  scalarFunTy),
-          ("cos",  scalarFunTy),
-          ("tan",  scalarFunTy),
-          ("exp",  scalarFunTy),
-          ("ln",   scalarFunTy),
-          ("sqrt", scalarFunTy),
-          ("logit", scalarFunTy), 
-          ("mean", FunctionTy 1 [("x", Ty [CardBV 0] REAL)] real)
-        ]
-    real = Ty [] REAL
-    locScale = FunctionTy 0 [("loc", real), ("scale", real)] real
-    dists :: Map Text FunctionTy
-    dists =
-      M.fromList
-        [ ("Normal", locScale),
-          ("HalfNormal", locScale),
-          ("Bernoulli", FunctionTy 0 [("prob", real)] (Ty [] INT)),
-          ("Binomial", FunctionTy 0 [("n", Ty [] INT), ("prob", real)] 
-            (Ty [] INT)),
-          ("Poisson", FunctionTy 0 [("mu", real)] (Ty [] INT)),
-          ("Beta", FunctionTy 0 [("alpha", real), ("beta", real)] (real)),
-          ("Gamma", 
-            FunctionTy 0 [("concentration", real), ("rate", real)] (real)),
-          ("MVNormal", FunctionTy 1 
-            [ ("mu", Ty [CardBV 0] REAL)
-            , ("sigma", Ty [CardBV 0, CardBV 0] REAL)
-            ]
-            real),
-          ("MVNormal", FunctionTy 1 
-            [ ("mu", Ty [CardBV 0] REAL)
-            , ("sigma", Ty [CardBV 0] REAL)
-            ] 
-            (Ty [CardBV 0] REAL))
-        ]
-
-    knownCards :: Set Text
-    knownCards = S.fromList $ mapMaybe go decls
-      where
-        go (CardDecl name) = Just name
-        go (FactorDecl name) = Just name
-        go _ = Nothing
