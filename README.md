@@ -3,10 +3,10 @@
 This is meant to be a simple bayesian modeling language, much like Stan.
 This is not meant to be a general PPL or for building sophisticated probabilistic deep learning models like Tensorflow Probability. 
 
-While TFP and PyMc seem very nice, I always end up reaching for Stan (or brms) when I want to write out a model.
+While TFP and PyMc are very nice, I always end up reaching for Stan (or brms) when I want to write out a model.
 It doesn't have a dozen slightly different ways to specify a model, it avoids boilerplate and has all the features that I've needed. 
 
-I absolutely adore Stan, but there are a few points that always frustrate me. 
+I adore Stan, but there are a few points that always frustrate me. 
 
     - Stan doesn't support the broadcasted arithmetic I've gotten so accustomed to from using numpy 
     - Stan takes forever to compile models
@@ -18,8 +18,8 @@ I absolutely adore Stan, but there are a few points that always frustrate me.
     or use whatever the hot new MCMC methods are. In such cases, I have to rewrite my model in TFP. 
 
 Stu tries to address these issues. 
-The guiding philosophy is that working with stu should be as pleasant as possible.
-I want stu to provide rich and helpful error messages that aid the user. 
+The guiding philosophy is that working with stu should be as pleasant as possible, with the compiler 
+providing rich and helpful error messages to the user. 
 
 Numpy style broadcasting is supported, with all shapes checked at compile time.
 Note that this means that there are array operations not supported. 
@@ -36,7 +36,7 @@ This gives the user access to a huge variety of inference algorithms and the fle
 The following is the classic Eight Schools model in stu. 
 
 ```
-// model.stu 
+// eight_schools_model.stu 
 
 factor School;
 
@@ -54,12 +54,12 @@ obs treatment_effects ~ Normal(
     ); 
 ```
 
-Once you run `$ stu --model model.stu -o model.py`, you end up with a python containing a handful of functions. 
+Once you run `$ stu build eight_schools_model.stu`, you end up with a python containing a handful of functions. 
 Most importantly, a `mk_log_prob` function that accepts an arviz `InferenceData` object containing the relevant data, and returns the log probability function. 
 Then you can use this function with blackjax to perform inference as usual. 
 
 ```
-from model import mk_log_prob
+from eight_schools_model import mk_log_prob
 import arviz as az 
 import jax
 
@@ -99,4 +99,3 @@ Maybe I could have something similar built as a command line tool.
 $ stu glmer 'y ~ x + (1|a)' --output model.stu
 ```
 
-Another very important thing I'd like to implement is some sort of
