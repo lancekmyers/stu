@@ -3,142 +3,17 @@ module Parser where
 -- (1)
 
 import AST
-import Control.Monad.Combinators.Expr
 import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Vector as V
-import Data.Void
+
 import Text.Megaparsec
-import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
-import Types
 
-type Parser = Parsec Void Text
-
-
-sc :: Parser ()
-sc =
-  L.space
-    space1
-    (L.skipLineComment "//")
-    (L.skipBlockComment "/*" "*/")
-
-lexeme :: Parser a -> Parser a
-lexeme = L.lexeme sc
-
-symbol :: Text -> Parser Text
-symbol = L.symbol sc
-
-integer :: Parser Integer
-integer = lexeme L.decimal
-
-float :: Parser Double
-float = lexeme L.float
-
-signedInteger :: Parser Integer
-signedInteger = L.signed sc integer
-
-signedFloat :: Parser Double
-signedFloat = L.signed sc float
-
-pIdent :: Parser Text
-pIdent =
-  T.pack
-    <$> ((:) <$> lowerChar <*> many (alphaNumChar <|> char '_') <?> "identifier")
-
-pIdentUpper :: Parser Text
-pIdentUpper =
-  T.pack
-    <$> ((:) <$> upperChar <*> many alphaNumChar <?> "identifier")
+import Parser.Expr ( pExpr ) 
+import Parser.Util
+import Parser.Types ( pTy )
 
 -- Parsing Expressions
-pVariable :: Parser ExprSrc
-pVariable = do 
-  position <- getSourcePos 
-  ident <- lexeme pIdent
-  return . cofree $ position :< VarF ident Unknown
-
-parens :: Parser a -> Parser a
-parens = between (symbol "(") (symbol ")")
-
-pLitInt :: Parser ExprSrc
-pLitInt = do 
-  pos <- getSourcePos 
-  int <- signedInteger
-  let litInt = LitInt . fromInteger $ int
-  return . cofree $ pos :< litInt 
-
-pLitReal :: Parser ExprSrc
-pLitReal = do 
-  pos <- getSourcePos
-  lit <- LitReal <$> signedFloat
-  return . cofree $ pos :< lit
-
-pLitArray :: Parser ExprSrc
-pLitArray = do 
-  pos <- getSourcePos
-  litArr <- between (symbol "[") (symbol "]") $
-    LitArray <$> sepBy pExpr (symbol ",")
-  return . cofree $ pos :< litArr
-
-pLit :: Parser (ExprSrc)
-pLit = choice 
-  [ pLitArray,
-    try pLitReal,
-    pLitInt
-  ]
-
-pTerm :: Parser ExprSrc
-pTerm =
-  choice
-    [ parens pExpr,
-      try pApp,
-      try pVariable,
-      pLit
-    ]
-
-pExpr :: Parser ExprSrc
-pExpr = makeExprParser pTerm operatorTable
-
-pAdd = do 
-  loc <- getSourcePos
-  star <- symbol "+" 
-  return $ \x y -> cofree $ loc :< ArithF Add x y  
-pMul = do 
-  loc <- getSourcePos
-  star <- symbol "*" 
-  return $ \x y -> cofree $ loc :< ArithF Mul x y  
-pDiv = do 
-  loc <- getSourcePos
-  star <- symbol "/" 
-  return $ \x y -> cofree $ loc :< ArithF Div x y  
-pSub = do 
-  loc <- getSourcePos
-  star <- symbol "-" 
-  return $ \x y -> cofree $ loc :< ArithF Sub x y  
-
-
-operatorTable :: [[Operator Parser ExprSrc]]
-operatorTable =
-  [ [ InfixL pMul,
-      InfixL pDiv
-    ],
-    [ InfixL pAdd,
-      InfixL pSub
-    ]
-  ]
-
-pApp :: Parser ExprSrc
-pApp = do
-  loc <- getSourcePos
-  funcName <- pIdent
-  args <- parens $ pExpr `sepBy` symbol ","
-  case funcName of
-    "gather" -> case args of
-      [xs, is] -> return . cofree $ loc :< GatherF xs is
-      _ -> fail "gather expects 2 arguments"
-    _ -> return . cofree $ loc :< FunAppF funcName args
 
 pDistribution :: Parser (Distribution SourcePos)
 pDistribution = do
@@ -210,46 +85,16 @@ pObsStmt = do
   semi
   return $ ObsStmt name dist
 
+pDecl :: Parser Decl
 pDecl = choice [pCardDecl, pFactorDecl, pDataDecl]
 
+pModelStmt :: Parser (ModelStmt SourcePos)
 pModelStmt = choice [pValStmt, pParamStmt, pObsStmt]
 
+pModel :: Parser (Model SourcePos)
 pModel = Model <$> many pModelStmt
 
-----
-pCard :: Parser Card
-pCard = (CardN . fromInteger <$> integer) <|> (CardFV <$> lexeme pIdentUpper)
 
-pREAL :: Parser ElTy
-pREAL = symbol "real" >> pure REAL
-
-pINT :: Parser ElTy
-pINT = symbol "int" >> pure INT
-
-pIND :: Parser ElTy
-pIND = IND <$> pCard
-
-pElTy :: Parser ElTy
-pElTy = choice [pREAL, pINT, pIND]
-
-pShape :: Parser Shape 
-pShape = do 
-  cards <-
-    between (symbol "[") (symbol "]") $
-      pCard `sepBy` symbol ","
-  let shape = MkShape (V.fromList cards)
-  return shape
-
-pTy :: Parser Ty
-pTy = do
-  shape <- pShape
-  el_ty <- pElTy
-  return $ Ty shape el_ty
-
--- pTy :: Parser Ty
--- pTy = choice [ pReal, pInt, IND <$> pCard, pTensorTy]
-
------
 -- parsing Bijectors 
 pBijNamed :: Parser (Bijector SourcePos)
 pBijNamed = do 
