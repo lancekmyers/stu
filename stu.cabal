@@ -27,7 +27,8 @@ library
 
     exposed-modules:
         Parser, AST, CodeGen, Analysis, Types,
-        Parser.Types, Parser.Expr, Parser.Util 
+        Parser.Types, Parser.Expr, Parser.Util,
+        CodeGen.Python 
 
     -- other-extensions:
     build-depends:
@@ -63,7 +64,9 @@ executable stu
 
     -- Modules included in this executable, other than Main.
     other-modules:
-        Parser, AST, CodeGen, Analysis, Types       
+        Parser, AST, CodeGen, Analysis, Types, 
+        Parser.Expr, Parser.Types, Parser.Util,
+        CodeGen.Python      
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -72,7 +75,7 @@ executable stu
         megaparsec == 9.2.*,
         parser-combinators == 1.3.*,
         text == 2.0.*, 
-        text-builder == 0.6.7, 
+        text-builder == 0.6.*, 
         containers == 0.6.*, 
         mtl >= 2.2,
         recursion-schemes == 5.2.*, 
