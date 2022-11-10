@@ -3,73 +3,27 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ScopedTypeVariables, TypeFamilies #-}
 
-module Analysis where
+module Analysis (prettyError, checkModel, buildCtx) where
 
 import AST
 -- (MonadReader)
-import Control.Monad.Except -- (MonadError)
-import Control.Monad.Reader
-import Control.Monad.State.Strict
-import Data.Functor.Product (Product(..))
-import Data.Functor.Const (Const(..))
+import Control.Monad.Except (MonadError(..))
+import Control.Monad.State.Strict (gets)
+import Control.Monad (when, forM)
 import Data.Functor.Foldable
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Vector as V
-import Prettyprinter
 import Types
 import Control.Comonad.Trans.Cofree ( CofreeF((:<)), Cofree, CofreeT, headF, cofree )
--- import qualified Control.Comonad.Cofree as Cofree (Cofree(..))
 import Text.Megaparsec.Pos (SourcePos (..), unPos)
-import Control.Comonad (extract)
 import Control.Comonad.Identity (Identity (runIdentity, Identity))
 import Data.Functor.Compose (Compose(getCompose, Compose))
-import Prettyprinter.Render.Terminal
 import Data.Maybe (fromMaybe, mapMaybe)
-
-data Ctx = Ctx
-  { vars :: Map Text Ty,
-    funs :: Map Text FunctionTy,
-    dists :: Map Text FunctionTy,
-    knownCards :: Set Text,
-    vardom :: Map Text VarDomain
-  } deriving Show
-
-type MonadTyCtx m = (MonadState Ctx m, MonadError TypeError m)
-
-lookupVar ::
-  (MonadTyCtx m) =>
-  Text ->
-  m Ty
-lookupVar name = do
-  varCtx <- vars <$> get
-  case M.lookup name varCtx of
-    Nothing -> throwError $ UnBoundVarIdent name []
-    Just ty -> return ty
-
-lookupFun ::
-  (MonadTyCtx m) =>
-  Text ->
-  m FunctionTy
-lookupFun name = do
-  funCtx <- funs <$> get
-  case M.lookup name funCtx of
-    Nothing -> throwError $ UnBoundFunctionIdent name []
-    Just ty -> return ty
-
-lookupDist ::
-  (MonadTyCtx m) =>
-  Text ->
-  m FunctionTy
-lookupDist name = do
-  distsCtx <- dists <$> get
-  case M.lookup name distsCtx of
-    Nothing -> throwError $ UnBoundDistIdent name []
-    Just ty -> return ty
+import Analysis.Error ( TypeError(..), blame, prettyError )
+import Analysis.Context
 
 annotateVarDomain :: (MonadTyCtx m) => ExprF a -> m (ExprF a)
 annotateVarDomain (VarF name _) = do 
@@ -78,19 +32,6 @@ annotateVarDomain (VarF name _) = do
     Nothing -> throwError $ UnBoundVarIdent name []
     Just d  -> return $ VarF name d
 annotateVarDomain x = return x
-
-insertTy ::
-  forall m.
-  (MonadTyCtx m) =>
-  Text ->
-  VarDomain -> 
-  Ty ->
-  m ()
-insertTy name vd ty = do
-  Ctx vars funs dists cards vardom <- get
-  let vars' = M.insert name ty vars
-  let vardom' = M.insert name vd vardom 
-  put $ Ctx vars' funs dists cards vardom'
 
 inferTy :: forall m.
   ( MonadTyCtx m,
@@ -279,186 +220,3 @@ buildCtx decls = Ctx vars funs dists knownCards varDoms
 
 
 
--- should move to separate module
-
-data TypeError
-  = IncompatibleShapes Shape Shape
-  | BadFunApp Text [Ty] FunctionTy
-  | BadDistr Text [Ty] FunctionTy
-  | BadStmt Text TypeError
-  | BinOpShapeErr BinOp Shape Shape
-  | BinOpElTyErr BinOp ElTy ElTy
-  | InvalidGather Ty Ty
-  | ExpectedGot Ty Ty
-  | UnBoundFunctionIdent Text [Text]
-  | UnBoundDistIdent Text [Text]
-  | UnBoundVarIdent Text [Text]
-  | NonHomogenousArrayLit [Ty]
-  | Blame SourcePos TypeError 
-  | OtherErr Text
-  deriving (Show)
-
-blame :: SourcePos -> TypeError -> TypeError 
-blame _ (Blame loc x) = Blame loc x 
-blame loc err = Blame loc err
-
-bad :: Doc AnsiStyle -> Doc AnsiStyle
-bad = emph . annotate (color Red)
-good :: Doc AnsiStyle -> Doc AnsiStyle
-good =  emph . annotate (color Green)
-emph :: Doc AnsiStyle -> Doc AnsiStyle
-emph = annotate bold
-
-prettyShapeError :: Shape -> Shape -> (Doc AnsiStyle, Doc AnsiStyle)
-prettyShapeError xs ys = (xs', ys') 
-  where 
-    prefix :: V.Vector (Doc AnsiStyle)
-    prefix = pretty <$> getVec (fromMaybe mempty (shDiff xs ys))
-    n = shRank xs `min` shRank ys 
-    
-    xsPrefix = if (shRank xs > shRank ys) then prefix else []
-    ysPrefix = if (shRank ys > shRank xs) then prefix else []
-
-    xsSuffix = V.reverse . V.take n . V.reverse . getVec $ xs
-    ysSuffix = V.reverse . V.take n . V.reverse . getVec $ ys
-
-    prettyCards = V.zipWith go xsSuffix ysSuffix 
-
-    xs' = tupled . V.toList $ xsPrefix <> (fst <$> prettyCards)
-    ys' = tupled . V.toList $ ysPrefix <> (snd <$> prettyCards)
-
-    go x@(CardN 1) y = (good $ pretty x, good $ pretty y) 
-    go x y@(CardN 1) = (good $ pretty x, good $ pretty y) 
-    go x y = if x == y 
-      then (good $ pretty x, good $ pretty y) 
-      else (bad  $ pretty x, bad  $ pretty y) 
-
-
-
-prettyError :: T.Text -> TypeError -> Doc AnsiStyle
-prettyError _ (IncompatibleShapes sh1 sh2) =
-  let (sh1', sh2') = prettyShapeError sh1 sh2 
-  in vsep
-      [ "The shape",
-        indent 2 sh1',
-        "Does not broadcast with",
-        indent 2 sh2'
-      ]
-prettyError _ (BadFunApp fname given fty@(FunctionTy _ argTys ret)) 
-  | (length argTys /= length given) = vsep 
-    [ "The function" <+> (bad $ pretty fname) <+> "was applied to the wrong number of arguments"
-    , (emph $ pretty fname) <+> "expects" 
-      <+> (emph . pretty . length $ argTys) <+> "arguments"
-    , "but was provided" 
-      <+> (emph . pretty . length $ given) <+> "arguments"
-    ]
-  | otherwise = vsep
-    [ "The function" <+> (bad $ pretty fname) <+> "cannot be applied to the given types",
-    indent 2 . vsep $ zipWith expGot argTys given
-    ]
-  where 
-    expGot (name, expTy) gotTy = vsep 
-      [ "in the argument" <+> emph (pretty name)
-      , indent 2 "expected:" <+> (pretty expTy)
-      , indent 2 "provided:" <+> (pretty gotTy)
-      ]
-prettyError _ (BadDistr dname given fty@(FunctionTy _ argTys ret)) 
-  | (length argTys /= length given) = vsep 
-    [ "The distribution" <+> (bad $ pretty dname) <+> "was applied to the wrong number of arguments"
-    , (emph $ pretty dname) <+> "expects" 
-      <+> (emph . pretty . length $ argTys) <+> "arguments"
-    , "but was prrovided" 
-      <+> (emph . pretty . length $ given) <+> "arguments"
-    ]
-  | otherwise = vsep
-    [ "The distribution" <+> (bad $ pretty dname) <+> "cannot be applied to the given types",
-    indent 2 . vsep $ zipWith expGot argTys given
-    ]
-  where 
-    expGot (name, expTy) gotTy = vsep 
-      [ "in the argument" <+> emph (pretty name)
-      , indent 2 "expected:" <+> (pretty expTy)
-      , indent 2 "provided:" <+> (pretty gotTy)
-      ]
-prettyError src (BadStmt stmt err) =
-    vsep
-      [ "An error occured in the statement of" <+> pretty stmt,
-        prettyError src err
-      ]
-prettyError _ (BinOpShapeErr binop sh sh') =
-    vsep
-      [ "In application of" <+> (bad $ viaShow binop),
-        indent 2 $ prettyError mempty $ IncompatibleShapes sh sh'
-      ]
-prettyError _ (BinOpElTyErr binop e e') =
-    vsep
-      [ "In application of" <+> (bad $ viaShow binop),
-        "The left hand side has elements of type",
-        indent 2 $ annotate bold $ pretty e,
-        "While the right hand side has elements of type",
-        indent 2 $ annotate bold $ pretty e'
-      ]
-prettyError _ (InvalidGather t1 t2) =
-    vsep
-      [ "Invalid Gather.",
-        "Gather expects as its second argument an array of indices into the first array",
-        "The first argument has type",
-        indent 2 $ pretty t1,
-        "The second argument has type",
-        indent 2 $ pretty t2
-      ]
-prettyError _ (ExpectedGot t1 t2) =
-    vsep
-      [ "The compiler was expecting an expression of type",
-        indent 2 $ pretty t1,
-        "However, it got an expression of type",
-        indent 2 . bad $ pretty t2
-      ]
-prettyError _ (UnBoundFunctionIdent fname []) =
-    "There is no known function" <+> (bad $ pretty fname)
-prettyError _ (UnBoundFunctionIdent fname near) =
-    vsep
-      [ "There is no known function" <+> (bad $ pretty fname),
-        "Did you mean one of the following?",
-        indent 2 . vsep $ ("•" <+>) . pretty <$> near
-      ]
-prettyError _ (UnBoundDistIdent fname []) =
-    "There is no known distribution" <+> (bad $ pretty fname)
-prettyError _ (UnBoundDistIdent fname near) =
-    vsep
-      [ "There is no known distribution" <+> (bad $ pretty fname),
-        "Did you mean one of the following?",
-        indent 2 . vsep $ ("•" <+>) . pretty <$> near
-      ]
-prettyError _ (UnBoundVarIdent fname []) =
-    "There is no known variable" <+> (bad $ pretty fname)
-prettyError _ (UnBoundVarIdent fname near) =
-    vsep
-      [ "There is no known variable" <+> (bad $ pretty fname),
-        "Did you mean one of the following?",
-        indent 2 . vsep $ ("•" <+>) . pretty <$> near
-      ]
-prettyError _ (NonHomogenousArrayLit tys) = "Nonhomogenous array literal"
-prettyError _ (OtherErr txt) = pretty txt
-
-prettyError src (Blame pos@(SourcePos fname line col) err) = vsep 
-    [ bad "error" <+> (emph . hcat $
-      [pretty fname, ":" , pretty $ unPos line, ":", pretty $ unPos col] 
-      )
-    , prettySrc src pos
-    , indent 2 $ prettyError src err 
-    ]
-
-
-prettySrc :: Text -> SourcePos -> Doc AnsiStyle 
-prettySrc src (SourcePos _ line' col') = vsep 
-  [ indent line_width "|"
-  , pretty line <+> "|" <+> srcLine 
-  , (indent line_width "|") <+> pointer
-  ]  
-  where 
-    line = unPos line'
-    col = unPos col'
-    line_width = (+1) . length . show  $ line
-    pointer = indent (col - 1) (bad "^")
-    srcLine = pretty $ T.lines src !! (line - 1)
