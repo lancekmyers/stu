@@ -1,4 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE TypeFamilies#-}
 
 module Types where
 
@@ -11,6 +15,7 @@ import qualified Data.Text as T
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Prettyprinter
+import GHC.Exts (IsList (..))
 
 data ElTy
   = REAL
@@ -26,16 +31,45 @@ instance Show ElTy where
   show INT = "int"
   show (IND card) = show card
 
-type Shape = Vector Card
+newtype Shape = MkShape {getVec :: Vector Card}
+  deriving newtype (Eq, Show, Semigroup, Monoid)
+
+instance IsList Shape where
+  type Item Shape = Card
+  fromList = MkShape . V.fromList 
+  toList = V.toList . getVec
 
 prettyShape :: Shape -> Doc ann
-prettyShape sh = tupled . fmap viaShow $ V.toList sh
+prettyShape sh = tupled . fmap viaShow $ V.toList (getVec sh)
 
 data Ty = Ty {shape :: Shape, elTy :: ElTy}
   deriving (Eq)
 
 rank :: Ty -> Int 
-rank (Ty sh _) = length sh
+rank (Ty sh _) = length (getVec sh)
+
+shRank :: Shape -> Int 
+shRank = V.length . getVec 
+
+shTake :: Int -> Shape -> Shape
+shTake n (MkShape v) = MkShape (V.take n v)
+
+shDrop :: Int -> Shape -> Shape
+shDrop n (MkShape v) = MkShape (V.drop n v)
+
+shCons :: Card -> Shape -> Shape 
+shCons c (MkShape v) = MkShape (V.cons c v)
+
+shUncons :: Shape -> Maybe (Card, Shape)
+shUncons (MkShape v) = case V.uncons v of 
+  Nothing -> Nothing 
+  Just (c, sh) -> Just (c, MkShape sh)
+
+shFromList :: [Card] -> Shape
+shFromList = MkShape . V.fromList
+shToList :: Shape -> [Card]
+shToList = V.toList . getVec
+
 
 instance Pretty Ty where pretty = viaShow
 
@@ -64,7 +98,7 @@ cardMatches x (CardN 1) = True
 cardMatches x y = x == y
 
 broadcast :: Shape -> Shape -> Maybe Shape
-broadcast xs ys = mappend prefix <$> zs 
+broadcast (MkShape xs) (MkShape ys) = MkShape . mappend prefix <$> zs 
   where 
     go (CardN 1) y = Just y 
     go x (CardN 1) = Just x
@@ -79,7 +113,7 @@ broadcastsTo :: Ty -> Ty -> Bool
 broadcastsTo (Ty sh el) (Ty sh' el') = (el == el') && (shapeBroadcastsTo sh sh')
 
 shapeBroadcastsTo :: Shape -> Shape -> Bool
-shapeBroadcastsTo sh sh' 
+shapeBroadcastsTo (MkShape sh) (MkShape sh') 
   | length sh > length sh' = False 
   | otherwise = and $ V.zipWith go (V.reverse sh) (V.reverse sh')
   where
@@ -88,7 +122,8 @@ shapeBroadcastsTo sh sh'
     go x y = x == y
 
 shDiff :: Shape -> Shape -> Maybe Shape 
-shDiff sh' sh = if n > 0 then Just prefix else Nothing
+shDiff (MkShape sh') (MkShape sh) = 
+  if n > 0 then Just (MkShape prefix) else Nothing
   where 
     larger = if (V.length sh < V.length sh') then sh' else sh 
     n = abs $ V.length sh - V.length sh'
@@ -130,7 +165,7 @@ shapeUnify ::
   (MonadError TyErr m) =>
   (Shape, Shape) ->
   StateT CardMap m ()
-shapeUnify (sh_given, sh_expected) = do
+shapeUnify (MkShape sh_given, MkShape sh_expected) = do
   let n_given = V.length sh_given
   let n_expected = V.length sh_expected
   let sh' = V.drop (n_expected - n_given) sh_expected
@@ -141,9 +176,9 @@ go (x, y)
   | otherwise = throwError (TyErr "unequal") 
 
 substitute :: CardMap -> Ty -> Ty
-substitute cmap (Ty sh elty) = Ty sh' elty
+substitute cmap (Ty sh elty) = Ty (MkShape sh') elty
   where
-    sh' = substGo <$> sh
+    sh' = substGo <$> (getVec sh)
     substGo (CardBV i) = let (Just c) = (cmap V.! i) in c
     substGo c = c
 
@@ -157,10 +192,10 @@ unify tys (FunctionTy n args ret) = do
   let err x = Left (TyErr x)
 
   let tys' = map snd args
-  let shs = shape <$> tys -- given shapes
+  let shs  = shape <$> tys -- given shapes
   let shs' = shape <$> tys' -- expected shapes
-  let ranks = V.length <$> shs
-  let ranks' = V.length <$> shs'
+  let ranks = shRank <$> shs
+  let ranks' = shRank <$> shs'
 
   -- enusre element types match
   when (not . and $ zipWith (==) (elTy <$> tys) (elTy <$> tys')) (err "1")
@@ -168,10 +203,10 @@ unify tys (FunctionTy n args ret) = do
   -- args must be of rank at least that of the parameters
   when (not . and $ zipWith (>=) ranks ranks') (err "2")
 
-  let prefixes = zipWith V.take (zipWith (-) ranks ranks') shs
-  let suffixes = zipWith V.drop (zipWith (-) ranks ranks') shs
+  let prefixes = zipWith shTake (zipWith (-) ranks ranks') shs
+  let suffixes = zipWith shDrop (zipWith (-) ranks ranks') shs
 
-  let longest_prefix = maximumBy (comparing V.length) prefixes
+  let longest_prefix = maximumBy (comparing shRank) prefixes
   let prefixes_broadcast = all (`shapeBroadcastsTo` longest_prefix) prefixes
 
   when (not prefixes_broadcast) (err "bad shapes 1")
@@ -187,13 +222,13 @@ unify tys (FunctionTy n args ret) = do
     [] -> (_, Ty ret_sh ret_el)
   -}
   let Ty ret_sh ret_el = substitute cmap ret
-  let br_sh = if V.length longest_prefix > 0 
+  let br_sh = if shRank longest_prefix > 0 
               then Just longest_prefix 
               else Nothing
   return (br_sh, Ty (longest_prefix <> ret_sh) ret_el)
   
 
-real = Ty V.empty REAL
+real = Ty mempty REAL
 
 -- (=:) :: Text -> Ty -> (Text, Ty)
 -- name := ty = (name, ty)

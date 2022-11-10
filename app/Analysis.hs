@@ -125,7 +125,7 @@ alg (GatherF xs_ty is_ty) = do
   xs_ty'@(Ty xs_sh xs_el) <- xs_ty -- [k, l]real
   is_ty'@(Ty is_sh is_el) <- is_ty -- [i, j]#k
   case is_el of
-    IND card -> case V.uncons xs_sh of
+    IND card -> case shUncons xs_sh of
       Just (k, ks) -> do
         when (card /= k) (throwError $ InvalidGather xs_ty' is_ty')
         let sh = is_sh <> ks
@@ -148,7 +148,7 @@ alg (LitArray tys) = do
   if and $ zipWith (==) tys' (tail tys')
   then 
     let (Ty sh el) = head tys'
-    in return $ Ty (V.cons (CardN $ length tys') sh) el
+    in return $ Ty (shCons (CardN $ length tys') sh) el
   else throwError $ NonHomogenousArrayLit tys'
 
 cofreeHead :: Functor f => Cofree f a -> a
@@ -165,7 +165,7 @@ inferTyDist (Distribution dname args loc (_, br_sh)) = do
   case unify arg_tys fty of
     Left _ -> throwError $ Blame loc $ BadDistr dname arg_tys fty
     Right (bd, ret) -> return $
-      Distribution dname arg_ann ret (V.length <$> bd, br_sh)
+      Distribution dname arg_ann ret (shRank <$> bd, br_sh)
 
 stmtHandler ::
   (MonadError TypeError m) =>
@@ -309,18 +309,18 @@ good =  emph . annotate (color Green)
 emph :: Doc AnsiStyle -> Doc AnsiStyle
 emph = annotate bold
 
-prettyShapeError :: V.Vector Card -> V.Vector Card -> (Doc AnsiStyle, Doc AnsiStyle)
+prettyShapeError :: Shape -> Shape -> (Doc AnsiStyle, Doc AnsiStyle)
 prettyShapeError xs ys = (xs', ys') 
   where 
     prefix :: V.Vector (Doc AnsiStyle)
-    prefix = pretty <$> fromMaybe [] (shDiff xs ys)
-    n = V.length xs `min` V.length ys 
+    prefix = pretty <$> getVec (fromMaybe mempty (shDiff xs ys))
+    n = shRank xs `min` shRank ys 
     
-    xsPrefix = if (V.length xs > V.length ys) then prefix else []
-    ysPrefix = if (V.length ys > V.length xs) then prefix else []
+    xsPrefix = if (shRank xs > shRank ys) then prefix else []
+    ysPrefix = if (shRank ys > shRank xs) then prefix else []
 
-    xsSuffix = V.reverse . V.take n . V.reverse $ xs
-    ysSuffix = V.reverse . V.take n . V.reverse $ ys
+    xsSuffix = V.reverse . V.take n . V.reverse . getVec $ xs
+    ysSuffix = V.reverse . V.take n . V.reverse . getVec $ ys
 
     prettyCards = V.zipWith go xsSuffix ysSuffix 
 

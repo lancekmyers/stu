@@ -232,12 +232,17 @@ pIND = IND <$> pCard
 pElTy :: Parser ElTy
 pElTy = choice [pREAL, pINT, pIND]
 
-pTy :: Parser Ty
-pTy = do
+pShape :: Parser Shape 
+pShape = do 
   cards <-
     between (symbol "[") (symbol "]") $
       pCard `sepBy` symbol ","
-  let shape = V.fromList cards
+  let shape = MkShape (V.fromList cards)
+  return shape
+
+pTy :: Parser Ty
+pTy = do
+  shape <- pShape
   el_ty <- pElTy
   return $ Ty shape el_ty
 

@@ -195,7 +195,7 @@ sample (Just sh) dist = sampled
   where
     cgCard (CardFV n) = "cards" ! PyStr n
     cgCard (CardN n) = PyNum $ Right n
-    cgShape = PyList . V.toList . fmap cgCard 
+    cgShape = PyList . V.toList . fmap cgCard . getVec
     sampled = PyApply (tfd "Sample") [dist] 
       [("sample_shape", cgShape sh)]
 
