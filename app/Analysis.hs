@@ -18,6 +18,7 @@ import qualified Data.Map.Strict as M
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Vector as V
 import Prettyprinter
 import Types
@@ -27,6 +28,8 @@ import Text.Megaparsec.Pos (SourcePos (..), unPos)
 import Control.Comonad (extract)
 import Control.Comonad.Identity (Identity (runIdentity, Identity))
 import Data.Functor.Compose (Compose(getCompose, Compose))
+import Prettyprinter.Render.Terminal
+import Data.Maybe (fromMaybe, mapMaybe)
 
 data Ctx = Ctx
   { vars :: Map Text Ty,
@@ -102,7 +105,7 @@ inferTy = para (go . runIdentity . getCompose)
       let embed' = embed . Compose . Identity
       let foo = fmap (runIdentity . getCompose . project) . snd <$> exp 
       let exp = fmap (\(ty :< exp) -> ty) <$> foo
-      ty <- catchError (alg exp) (throwError . Blame loc)
+      ty <- catchError (alg exp) (throwError . blame loc)
       baz <- sequence (fmap (\(ty :< exp) -> exp) <$> foo)
       let qux = ((\e -> embed' $ ty :< e) <$> baz) :: ExprF (Cofree ExprF Ty)
       qux' <- annotateVarDomain qux
@@ -122,7 +125,7 @@ alg (GatherF xs_ty is_ty) = do
   xs_ty'@(Ty xs_sh xs_el) <- xs_ty -- [k, l]real
   is_ty'@(Ty is_sh is_el) <- is_ty -- [i, j]#k
   case is_el of
-    IND card -> case V.uncons xs_sh of
+    IND card -> case shUncons xs_sh of
       Just (k, ks) -> do
         when (card /= k) (throwError $ InvalidGather xs_ty' is_ty')
         let sh = is_sh <> ks
@@ -145,7 +148,7 @@ alg (LitArray tys) = do
   if and $ zipWith (==) tys' (tail tys')
   then 
     let (Ty sh el) = head tys'
-    in return $ Ty (V.cons (CardN $ length tys') sh) el
+    in return $ Ty (shCons (CardN $ length tys') sh) el
   else throwError $ NonHomogenousArrayLit tys'
 
 cofreeHead :: Functor f => Cofree f a -> a
@@ -162,7 +165,7 @@ inferTyDist (Distribution dname args loc (_, br_sh)) = do
   case unify arg_tys fty of
     Left _ -> throwError $ Blame loc $ BadDistr dname arg_tys fty
     Right (bd, ret) -> return $
-      Distribution dname arg_ann ret (V.length <$> bd, br_sh)
+      Distribution dname arg_ann ret (shRank <$> bd, br_sh)
 
 stmtHandler ::
   (MonadError TypeError m) =>
@@ -214,6 +217,68 @@ checkModel (Model stmts) = Model <$> forM stmts checkModelStmt
 allSame :: Eq a => [a] -> Bool
 allSame xs = and $ zipWith (==) xs (tail xs)
 
+buildCtx :: [Decl] -> Ctx
+buildCtx decls = Ctx vars funs dists knownCards varDoms
+  where
+    vars :: Map Text Ty
+    vars = M.fromList $ mapMaybe go decls
+      where
+        go (DataDecl name ty) = Just (name, ty)
+        go _ = Nothing
+    varDoms = M.fromList $ mapMaybe go decls
+      where
+        go (DataDecl name ty) = Just (name, Data)
+        go _ = Nothing
+
+    scalarFunTy = FunctionTy 0 [("x", Ty [] REAL)] (Ty [] REAL)
+    funs :: Map Text FunctionTy
+    funs =
+      M.fromList
+        [ ("sin",  scalarFunTy),
+          ("cos",  scalarFunTy),
+          ("tan",  scalarFunTy),
+          ("exp",  scalarFunTy),
+          ("ln",   scalarFunTy),
+          ("sqrt", scalarFunTy),
+          ("logit", scalarFunTy), 
+          ("mean", FunctionTy 1 [("x", Ty [CardBV 0] REAL)] real)
+        ]
+    real = Ty [] REAL
+    locScale = FunctionTy 0 [("loc", real), ("scale", real)] real
+    dists :: Map Text FunctionTy
+    dists =
+      M.fromList
+        [ ("Normal", locScale),
+          ("HalfNormal", locScale),
+          ("Bernoulli", FunctionTy 0 [("prob", real)] (Ty [] INT)),
+          ("Binomial", FunctionTy 0 [("n", Ty [] INT), ("prob", real)] 
+            (Ty [] INT)),
+          ("Poisson", FunctionTy 0 [("mu", real)] (Ty [] INT)),
+          ("Beta", FunctionTy 0 [("alpha", real), ("beta", real)] (real)),
+          ("Gamma", 
+            FunctionTy 0 [("concentration", real), ("rate", real)] (real)),
+          ("MVNormal", FunctionTy 1 
+            [ ("mu", Ty [CardBV 0] REAL)
+            , ("sigma", Ty [CardBV 0, CardBV 0] REAL)
+            ]
+            real),
+          ("MVNormal", FunctionTy 1 
+            [ ("mu", Ty [CardBV 0] REAL)
+            , ("sigma", Ty [CardBV 0] REAL)
+            ] 
+            (Ty [CardBV 0] REAL))
+        ]
+
+    knownCards :: Set Text
+    knownCards = S.fromList $ mapMaybe go decls
+      where
+        go (CardDecl name) = Just name
+        go (FactorDecl name) = Just name
+        go _ = Nothing
+
+
+
+
 -- should move to separate module
 
 data TypeError
@@ -233,89 +298,167 @@ data TypeError
   | OtherErr Text
   deriving (Show)
 
-instance Pretty TypeError where
-  pretty (IncompatibleShapes sh sh') =
-    vsep
+blame :: SourcePos -> TypeError -> TypeError 
+blame _ (Blame loc x) = Blame loc x 
+blame loc err = Blame loc err
+
+bad :: Doc AnsiStyle -> Doc AnsiStyle
+bad = emph . annotate (color Red)
+good :: Doc AnsiStyle -> Doc AnsiStyle
+good =  emph . annotate (color Green)
+emph :: Doc AnsiStyle -> Doc AnsiStyle
+emph = annotate bold
+
+prettyShapeError :: Shape -> Shape -> (Doc AnsiStyle, Doc AnsiStyle)
+prettyShapeError xs ys = (xs', ys') 
+  where 
+    prefix :: V.Vector (Doc AnsiStyle)
+    prefix = pretty <$> getVec (fromMaybe mempty (shDiff xs ys))
+    n = shRank xs `min` shRank ys 
+    
+    xsPrefix = if (shRank xs > shRank ys) then prefix else []
+    ysPrefix = if (shRank ys > shRank xs) then prefix else []
+
+    xsSuffix = V.reverse . V.take n . V.reverse . getVec $ xs
+    ysSuffix = V.reverse . V.take n . V.reverse . getVec $ ys
+
+    prettyCards = V.zipWith go xsSuffix ysSuffix 
+
+    xs' = tupled . V.toList $ xsPrefix <> (fst <$> prettyCards)
+    ys' = tupled . V.toList $ ysPrefix <> (snd <$> prettyCards)
+
+    go x@(CardN 1) y = (good $ pretty x, good $ pretty y) 
+    go x y@(CardN 1) = (good $ pretty x, good $ pretty y) 
+    go x y = if x == y 
+      then (good $ pretty x, good $ pretty y) 
+      else (bad  $ pretty x, bad  $ pretty y) 
+
+
+
+prettyError :: T.Text -> TypeError -> Doc AnsiStyle
+prettyError _ (IncompatibleShapes sh1 sh2) =
+  let (sh1', sh2') = prettyShapeError sh1 sh2 
+  in vsep
       [ "The shape",
-        indent 2 $ prettyShape sh,
+        indent 2 sh1',
         "Does not broadcast with",
-        indent 2 $ prettyShape sh'
+        indent 2 sh2'
       ]
-  pretty (BadFunApp fname given fty) =
-    vsep
-      [ "The function" <+> pretty fname <+> "has type",
-        indent 2 $ pretty fty,
-        "But was provided arguments of type",
-        indent 2 $ tupled $ pretty <$> given
+prettyError _ (BadFunApp fname given fty@(FunctionTy _ argTys ret)) 
+  | (length argTys /= length given) = vsep 
+    [ "The function" <+> (bad $ pretty fname) <+> "was applied to the wrong number of arguments"
+    , (emph $ pretty fname) <+> "expects" 
+      <+> (emph . pretty . length $ argTys) <+> "arguments"
+    , "but was provided" 
+      <+> (emph . pretty . length $ given) <+> "arguments"
+    ]
+  | otherwise = vsep
+    [ "The function" <+> (bad $ pretty fname) <+> "cannot be applied to the given types",
+    indent 2 . vsep $ zipWith expGot argTys given
+    ]
+  where 
+    expGot (name, expTy) gotTy = vsep 
+      [ "in the argument" <+> emph (pretty name)
+      , indent 2 "expected:" <+> (pretty expTy)
+      , indent 2 "provided:" <+> (pretty gotTy)
       ]
-  pretty (BadDistr dname given fty) =
-    vsep
-      [ "The distribution" <+> pretty dname <+> "has type",
-        indent 2 $ pretty fty,
-        "But was provided arguments of type",
-        indent 2 $ tupled $ pretty <$> given
+prettyError _ (BadDistr dname given fty@(FunctionTy _ argTys ret)) 
+  | (length argTys /= length given) = vsep 
+    [ "The distribution" <+> (bad $ pretty dname) <+> "was applied to the wrong number of arguments"
+    , (emph $ pretty dname) <+> "expects" 
+      <+> (emph . pretty . length $ argTys) <+> "arguments"
+    , "but was prrovided" 
+      <+> (emph . pretty . length $ given) <+> "arguments"
+    ]
+  | otherwise = vsep
+    [ "The distribution" <+> (bad $ pretty dname) <+> "cannot be applied to the given types",
+    indent 2 . vsep $ zipWith expGot argTys given
+    ]
+  where 
+    expGot (name, expTy) gotTy = vsep 
+      [ "in the argument" <+> emph (pretty name)
+      , indent 2 "expected:" <+> (pretty expTy)
+      , indent 2 "provided:" <+> (pretty gotTy)
       ]
-  pretty (BadStmt stmt err) =
+prettyError src (BadStmt stmt err) =
     vsep
       [ "An error occured in the statement of" <+> pretty stmt,
-        indent 2 $ pretty err
+        prettyError src err
       ]
-  pretty (BinOpShapeErr binop sh sh') =
+prettyError _ (BinOpShapeErr binop sh sh') =
     vsep
-      [ "In application of" <+> viaShow binop,
-        indent 2 $ pretty $ IncompatibleShapes sh sh'
+      [ "In application of" <+> (bad $ viaShow binop),
+        indent 2 $ prettyError mempty $ IncompatibleShapes sh sh'
       ]
-  pretty (BinOpElTyErr binop e e') =
+prettyError _ (BinOpElTyErr binop e e') =
     vsep
-      [ "In application of" <+> viaShow binop,
+      [ "In application of" <+> (bad $ viaShow binop),
         "The left hand side has elements of type",
-        indent 2 $ pretty e,
+        indent 2 $ annotate bold $ pretty e,
         "While the right hand side has elements of type",
-        indent 2 $ pretty e'
+        indent 2 $ annotate bold $ pretty e'
       ]
-  pretty (InvalidGather t1 t2) =
+prettyError _ (InvalidGather t1 t2) =
     vsep
       [ "Invalid Gather.",
-        "Gather expects as its second argument an array of indices into thee first array",
+        "Gather expects as its second argument an array of indices into the first array",
         "The first argument has type",
         indent 2 $ pretty t1,
+        "The second argument has type",
         indent 2 $ pretty t2
       ]
-  pretty (ExpectedGot t1 t2) =
+prettyError _ (ExpectedGot t1 t2) =
     vsep
       [ "The compiler was expecting an expression of type",
         indent 2 $ pretty t1,
         "However, it got an expression of type",
-        indent 2 $ pretty t2
+        indent 2 . bad $ pretty t2
       ]
-  pretty (UnBoundFunctionIdent fname []) =
-    "There is no known function" <+> pretty fname
-  pretty (UnBoundFunctionIdent fname near) =
+prettyError _ (UnBoundFunctionIdent fname []) =
+    "There is no known function" <+> (bad $ pretty fname)
+prettyError _ (UnBoundFunctionIdent fname near) =
     vsep
-      [ "There is no known function" <+> pretty fname,
+      [ "There is no known function" <+> (bad $ pretty fname),
         "Did you mean one of the following?",
         indent 2 . vsep $ ("•" <+>) . pretty <$> near
       ]
-  pretty (UnBoundDistIdent fname []) =
-    "There is no known distribution" <+> pretty fname
-  pretty (UnBoundDistIdent fname near) =
+prettyError _ (UnBoundDistIdent fname []) =
+    "There is no known distribution" <+> (bad $ pretty fname)
+prettyError _ (UnBoundDistIdent fname near) =
     vsep
-      [ "There is no known distribution" <+> pretty fname,
+      [ "There is no known distribution" <+> (bad $ pretty fname),
         "Did you mean one of the following?",
         indent 2 . vsep $ ("•" <+>) . pretty <$> near
       ]
-  pretty (UnBoundVarIdent fname []) =
-    "There is no known variable" <+> pretty fname
-  pretty (UnBoundVarIdent fname near) =
+prettyError _ (UnBoundVarIdent fname []) =
+    "There is no known variable" <+> (bad $ pretty fname)
+prettyError _ (UnBoundVarIdent fname near) =
     vsep
-      [ "There is no known variable" <+> pretty fname,
+      [ "There is no known variable" <+> (bad $ pretty fname),
         "Did you mean one of the following?",
         indent 2 . vsep $ ("•" <+>) . pretty <$> near
       ]
-  pretty (NonHomogenousArrayLit tys) = "Nonhomogenous array literal"
-  pretty (OtherErr txt) = pretty txt
+prettyError _ (NonHomogenousArrayLit tys) = "Nonhomogenous array literal"
+prettyError _ (OtherErr txt) = pretty txt
 
-  pretty (Blame (SourcePos _ line col) err) = vsep 
-    [ hsep ["On line",  pretty $ unPos line, "column", pretty $ unPos col] 
-    , indent 2 $ pretty err 
+prettyError src (Blame pos@(SourcePos fname line col) err) = vsep 
+    [ bad "error" <+> (emph . hcat $
+      [pretty fname, ":" , pretty $ unPos line, ":", pretty $ unPos col] 
+      )
+    , prettySrc src pos
+    , indent 2 $ prettyError src err 
     ]
+
+
+prettySrc :: Text -> SourcePos -> Doc AnsiStyle 
+prettySrc src (SourcePos _ line' col') = vsep 
+  [ indent line_width "|"
+  , pretty line <+> "|" <+> srcLine 
+  , (indent line_width "|") <+> pointer
+  ]  
+  where 
+    line = unPos line'
+    col = unPos col'
+    line_width = (+1) . length . show  $ line
+    pointer = indent (col - 1) (bad "^")
+    srcLine = pretty $ T.lines src !! (line - 1)

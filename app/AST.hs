@@ -9,15 +9,11 @@
 
 module AST where
 
-import Data.Functor.Foldable
-import Data.Functor.Foldable.TH
---import Control.Comonad.Cofree (Cofree(..))
 import Control.Comonad.Trans.Cofree (CofreeF(..), Cofree)
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Vector
-import GHC.Generics
+import GHC.Generics ( Generic )
 import Types (Ty, Shape)
 
 import Text.Megaparsec.Pos (SourcePos)
@@ -73,17 +69,6 @@ data BijectorF a
 
 type Bijector ann = Cofree BijectorF ann
 
-{-
-data Bijection
-  = BijExp
-  | SoftMax
-  | Logit Double
-  | Probit Double
-  | Shift Double
-  | Scale Double
-  | Chain [Bijection]
-  deriving (Show)
--} 
 
 data Decl
   = CardDecl Name
@@ -91,7 +76,8 @@ data Decl
   | DataDecl Name Ty
   deriving (Show)
 
--- include shape that is being broadcast over
+-- include shape that is being broadcast over?
+-- | Statements involved in the model 
 data ModelStmt ann 
   = ValStmt   Name Ty (Expr ann) 
   | ParamStmt Name Ty (Distribution ann) (Maybe (Bijector ann)) 

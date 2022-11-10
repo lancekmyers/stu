@@ -5,7 +5,7 @@
 module Main where
 
 import AST
-import Analysis
+import Analysis ( checkModel, prettyError, buildCtx )
 import CodeGen (writeProg, cgModel)
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever, guard)
@@ -20,33 +20,36 @@ import Data.Text (Text)
 import qualified Data.Text.IO as TIO
 import Parser (parseProgram)
 import Prettyprinter
-import Prettyprinter.Render.Text (putDoc)
-import System.Directory
+import Prettyprinter.Render.Terminal (AnsiStyle, putDoc, bold, color, Color(..))
+import System.Directory ( doesFileExist )
 import System.FilePath
 import qualified Text.Builder as B
 import Text.Megaparsec (errorBundlePretty, runParser, SourcePos)
 import Types
 import Options.Applicative
 
-data Options = Options {
-  inFileName :: FilePath, 
-  outFileName :: Maybe FilePath
-}
+data Options
+  = BuildOptions 
+    { inFileName' :: FilePath
+    , outFileName' :: Maybe FilePath  
+    }
+  | CheckOptions 
+    { inFileName' :: FilePath }
 
-options :: Parser Options 
-options = Options 
-      <$> strOption
-          ( long "model"
-         <> metavar "TARGET"
-         <> help "File containing model to compile" )
-      <*> optional (strOption 
-          ( long "output" 
-          <> short 'o'
-          <> metavar "OUTPUT"
-          <> help "File to write python model to" )
-        )
-      
-
+options :: Parser Options
+options = subparser $ 
+  (command "build" (info buildOptions $ progDesc "Build a stu model"))
+  <> (command "check" (info checkOptions $ progDesc "Check a stu model without building"))
+  where 
+    buildOptions = BuildOptions 
+      <$> (argument str (metavar "MODEL" <> help "File containing model to compile"))
+      <*> optional ( strOption (long "output" 
+            <> short 'o'
+            <> metavar "OUTPUT"
+            <> help "File to write python model to" )
+          )
+    checkOptions = CheckOptions 
+      <$> (argument str (metavar "MODEL" <> help "File containing model to compile"))
 
 {-
    "         __       "
@@ -55,26 +58,27 @@ options = Options
    "(__  ) /_/ /_/ /  "
    "/____/\\__/\\__,_/"
 -}
-type Err = Doc ()
+type Err = Doc AnsiStyle
 
 
-parseFile :: FilePath -> ExceptT Err IO (Program SourcePos)
+parseFile :: FilePath -> ExceptT Err IO (Text, Program SourcePos)
 parseFile fname = do
   fcontents <- lift $ TIO.readFile fname
   case runParser parseProgram fname fcontents of
     Left err -> throwError . pretty $ errorBundlePretty err
-    Right (decls, m) -> return $ Program decls m
+    Right prog -> return $ (fcontents, prog)
 
-checkProgram :: Monad m => Program SourcePos -> ExceptT Err m (Program Ty)
-checkProgram (Program decls model) = do 
+checkProgram :: Monad m => Text -> Program SourcePos -> ExceptT Err m (Program Ty)
+checkProgram src (Program decls model) = do 
   let ctx = buildCtx decls
-  (model, ctx) <- withExceptT pretty $ runStateT (checkModel model) ctx
+  (model, ctx) <- withExceptT (prettyError src) $ 
+    runStateT (checkModel model) ctx
   return $ Program decls model 
 
-validateFileNames :: Options -> ExceptT Err IO (FilePath, FilePath) 
-validateFileNames opts = do 
-  let fname = inFileName opts
-  let out_fname = fromMaybe (fname -<.> ".py") (outFileName opts)
+validateFileNames :: (FilePath, Maybe FilePath) -> ExceptT Err IO (FilePath, FilePath) 
+validateFileNames (inFileName, outFileName) = do 
+  let fname = inFileName 
+  let out_fname = fromMaybe (fname -<.> ".py") outFileName
   
   case takeExtension fname of
     ".stu" -> pure ()
@@ -86,82 +90,39 @@ validateFileNames opts = do
   return (fname, out_fname)
 
 main' :: Options -> ExceptT Err IO ()
-main' opts = do 
-  (fname, out_fname) <- validateFileNames opts
+main' (BuildOptions inFileName outFileName) = do 
+  (fname, out_fname) <- validateFileNames (inFileName, outFileName)
 
-  liftIO . putStrLn $ "Compiling " ++ fname
+  liftIO . putDoc $ "Checking  " <> (annotate bold . pretty $ fname) <> line
   
-  prog <- parseFile fname >>= checkProgram
+  (src, prog) <- parseFile fname 
+  progChecked <- checkProgram src prog
   
-  liftIO . putStrLn $ "Succesfully compiled " ++ fname
+  liftIO . putDoc $ (annotate (color Green) $ "Success") <+> 
+    "checked" <+> pretty fname <> line
 
-  let py_src = B.run $ writeProg prog
+  let py_src = B.run $ writeProg progChecked
   lift $ TIO.writeFile out_fname py_src  
-  liftIO . putStrLn $ "Output written to " ++ out_fname
+  liftIO . putDoc $ indent 2 $ "compiled output written to" <+> pretty out_fname
+main' (CheckOptions inFileName) = do 
+  (fname, _) <- validateFileNames (inFileName, Nothing)
+
+  liftIO . putDoc $ "Checking  " <> (annotate bold . pretty $ fname) <> line
+  
+  (src, prog) <- parseFile fname 
+  progChecked <- checkProgram src prog
+  
+  liftIO . putDoc $ (annotate (color Green) $ "Success") <+> 
+    "checked" <+> pretty fname <> line
 
 main :: IO ()
 main = mainHandled =<< execParser opts
   where
     mainHandled opts =
       runExceptT (main' opts) >>= \case 
-        Left err -> print err
+        Left err -> putDoc err
         Right foo -> return ()
     opts = info (options <**> helper)
       ( fullDesc
      <> progDesc "Compile a stu model"
      <> header "stu" )
-
-
-buildCtx :: [Decl] -> Ctx
-buildCtx decls = Ctx vars funs dists knownCards varDoms
-  where
-    vars :: Map Text Ty
-    vars = M.fromList $ mapMaybe go decls
-      where
-        go (DataDecl name ty) = Just (name, ty)
-        go _ = Nothing
-    varDoms = M.fromList $ mapMaybe go decls
-      where
-        go (DataDecl name ty) = Just (name, Data)
-        go _ = Nothing
-
-    scalarFunTy = FunctionTy 0 [("x", Ty [] REAL)] (Ty [] REAL)
-    funs :: Map Text FunctionTy
-    funs =
-      M.fromList
-        [ ("sin", scalarFunTy),
-          ("cos", scalarFunTy),
-          ("tan", scalarFunTy),
-          ("exp", scalarFunTy),
-          ("ln", scalarFunTy),
-          ("sqrt", scalarFunTy)
-        ]
-    real = Ty [] REAL
-    locScale = FunctionTy 0 [("loc", real), ("scale", real)] real
-    dists :: Map Text FunctionTy
-    dists =
-      M.fromList
-        [ ("Normal", locScale),
-          ("HalfNormal", locScale),
-          ("Bernoulli", FunctionTy 0 [("prob", real)] (Ty [] INT)),
-          ("Beta", FunctionTy 0 [("alpha", real), ("beta", real)] (real)),
-          ("Gamma", 
-            FunctionTy 0 [("concentration", real), ("rate", real)] (real)),
-          ("MVNormal", FunctionTy 1 
-            [ ("mu", Ty [CardBV 0] REAL)
-            , ("sigma", Ty [CardBV 0, CardBV 0] REAL)
-            ]
-            real),
-          ("MVNormal", FunctionTy 1 
-            [ ("mu", Ty [CardBV 0] REAL)
-            , ("sigma", Ty [CardBV 0] REAL)
-            ] 
-            (Ty [CardBV 0] REAL))
-        ]
-
-    knownCards :: Set Text
-    knownCards = S.fromList $ mapMaybe go decls
-      where
-        go (CardDecl name) = Just name
-        go (FactorDecl name) = Just name
-        go _ = Nothing
