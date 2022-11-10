@@ -117,5 +117,9 @@ pBij = pBijChain <|> pBijNamed
 
 -- parsing programs
 
-parseProgram :: Parser ([Decl], Model SourcePos)
-parseProgram = ((,) <$> many pDecl <*> pModel) <* eof
+parseProgram :: Parser (Program SourcePos)
+parseProgram = do
+  decls <- many pDecl 
+  model <- pModel 
+  eof 
+  return $ Program decls model

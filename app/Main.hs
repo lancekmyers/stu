@@ -66,7 +66,7 @@ parseFile fname = do
   fcontents <- lift $ TIO.readFile fname
   case runParser parseProgram fname fcontents of
     Left err -> throwError . pretty $ errorBundlePretty err
-    Right (decls, m) -> return $ (fcontents, Program decls m)
+    Right prog -> return $ (fcontents, prog)
 
 checkProgram :: Monad m => Text -> Program SourcePos -> ExceptT Err m (Program Ty)
 checkProgram src (Program decls model) = do 
