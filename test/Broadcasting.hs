@@ -2,7 +2,7 @@
 
 module Broadcasting where 
 import Test.Hspec
-import Test.QuickCheck
+import Test.QuickCheck ( Arbitrary(arbitrary), Testable(property) )
 import Control.Exception (evaluate)
 import Types
 import Control.Monad (forM)
@@ -54,19 +54,19 @@ check_broadcastsTo = describe "shape broadcasts to : " $ do
 
 check_shDiff :: SpecWith ()
 check_shDiff = describe "shape difference: " $ do
-  it "1" $ do 
+  it "shape minus nothing" $ do 
     property $ \sh' -> 
       let 
         sh = mkShape sh'
       in 
         shDiff sh [] == (if V.length sh == 0 then Nothing else Just sh)
-  it "2" $ do 
+  it "shape minus itself" $ do 
     property $ \sh' -> 
       let 
         sh = mkShape sh' 
       in 
         sh `shDiff` sh == Nothing
-  it "3" $ do 
+  it "prefix + shape - shape = prefix" $ do 
     property $ \prefix' sh' -> 
       let 
         sh = mkShape sh'
@@ -78,27 +78,32 @@ check_shDiff = describe "shape difference: " $ do
 
 -- check_unify :: SpecWith _
 check_unify = describe "unification" $ do 
-  it "desc" $ do 
+  it "arguments of exactly the right type unify" $ do 
     property $ \tys' ty ->  
       let 
         tys = tys'
         args = (\t -> ("", t)) <$> tys
-      in (unify tys (FunctionTy 0 args ty)) == (Right (Nothing, ty)) 
+      in (unify tys (FunctionTy 0 args ty)) `shouldBe` (Right (Nothing, ty)) 
 
-  it "desc2" $ do 
-    property $ \prefix' tys' ty ->  
+  it "broadcasts over common prefix" $ do 
+    property $ \prefix' tys ty ->  
       let 
         prefix = mkShape prefix' 
-        tys = [ Ty (prefix <> sh) el | (Ty sh el) <- tys']
-        args = (\t -> ("", t)) <$> tys
-      in (unify tys (FunctionTy 0 args ty)) == (Right (Nothing, ty)) 
+        tys' = [ Ty (prefix <> sh) el | (Ty sh el) <- tys]
+        fTy = FunctionTy 0 ((\t -> ("", t)) <$> tys) ty 
+        ty' = let Ty sh el = ty in 
+          if length tys > 0 
+          then Ty (prefix <> sh) el
+          else Ty sh el
+        prefix_ = if (V.length prefix > 0)  && (length tys > 0) then (Just prefix) else Nothing
+      in (unify tys' fTy) `shouldBe` (Right (prefix_, ty')) 
 
   it "scalar function can take anything" $ do 
     property $ \ty ->  
       let 
         Ty sh elt = ty 
         scalarFn = FunctionTy 0 [("x", Ty [] elt)] (Ty [] elt)
-      in (unify [ty] scalarFn) == (
+      in (unify [ty] scalarFn) `shouldBe` (
         case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty))
       )
 
@@ -108,6 +113,6 @@ check_unify = describe "unification" $ do
         Ty sh elt = ty
         ty' = Ty (sh <> [card]) elt 
         funTy = FunctionTy 1 [("x", Ty [CardBV 0] elt)] (Ty [] elt)
-      in (unify [ty'] funTy) == (
+      in (unify [ty'] funTy) `shouldBe` (
         case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty))
       )
