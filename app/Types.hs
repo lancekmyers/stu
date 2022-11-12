@@ -16,6 +16,8 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Prettyprinter
 import GHC.Exts (IsList (..))
+import qualified Data.Map.Strict as M
+
 
 data ElTy
   = REAL
@@ -79,7 +81,7 @@ instance Show Ty where
 data Card
   = CardN  Int
   | CardFV Text
-  | CardBV Int  -- polymorphic var
+  | CardBV Text  -- polymorphic var
   -- maybe eventually existentially bound variables?
   deriving (Eq)
 
@@ -88,10 +90,8 @@ instance Pretty Card where pretty = viaShow
 instance Show Card where
   show (CardN  n) = "#" <> show n
   show (CardFV v) = "#" <> T.unpack v
-  show (CardBV i) = '\'' : name
-    where
-      name = if i < 5 then ["abcde" !! i] else ("a_" <> show i)
-
+  show (CardBV i) = '\'' : (T.unpack i)
+    
 
 cardMatches (CardN 1) x = True
 cardMatches x (CardN 1) = True
@@ -147,7 +147,7 @@ instance Pretty FunctionTy where
 data TyErr = TyErr String
   deriving (Eq, Show)
 
-type CardMap = Vector (Maybe Card)
+type CardMap = M.Map Text Card
 
 -- TODO: use mutable veector for this
 cardUnify ::
@@ -156,8 +156,8 @@ cardUnify ::
   StateT CardMap m ()
 cardUnify (c, (CardBV i)) = do
   cmap <- get
-  case cmap V.! i of
-    Nothing -> put $ cmap V.// [(i, Just c)]
+  case M.lookup i cmap of
+    Nothing -> put $ M.insert i c cmap 
     Just c' -> if c == c' then pure () else throwError (TyErr "")
 cardUnify (c, c') = if c == c' then pure () else throwError (TyErr "ahhh")
 
@@ -179,7 +179,7 @@ substitute :: CardMap -> Ty -> Ty
 substitute cmap (Ty sh elty) = Ty (MkShape sh') elty
   where
     sh' = substGo <$> (getVec sh)
-    substGo (CardBV i) = let (Just c) = (cmap V.! i) in c
+    substGo (CardBV i) = cmap M.! i    
     substGo c = c
 
 
@@ -212,9 +212,8 @@ unify tys (FunctionTy n args ret) = do
   when (not prefixes_broadcast) (err "bad shapes 1")
 
   let cz = zip suffixes shs'
-  let empty_cmap = V.replicate n Nothing
 
-  cmap <- runExcept $ execStateT (forM_ cz shapeUnify) empty_cmap
+  cmap <- runExcept $ execStateT (forM_ cz shapeUnify) mempty
   {-
   let Ty ret_sh ret_el = substitute cmap ret
   return $ case prefixes of

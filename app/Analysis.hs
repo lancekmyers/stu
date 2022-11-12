@@ -182,7 +182,7 @@ buildCtx decls = Ctx vars funs dists knownCards varDoms
           ("ln",   scalarFunTy),
           ("sqrt", scalarFunTy),
           ("logit", scalarFunTy), 
-          ("mean", FunctionTy 1 [("x", Ty [CardBV 0] REAL)] real)
+          ("mean", FunctionTy 1 [("x", Ty [CardBV "n"] REAL)] real)
         ]
     real = Ty [] REAL
     locScale = FunctionTy 0 [("loc", real), ("scale", real)] real
@@ -199,15 +199,15 @@ buildCtx decls = Ctx vars funs dists knownCards varDoms
           ("Gamma", 
             FunctionTy 0 [("concentration", real), ("rate", real)] (real)),
           ("MVNormal", FunctionTy 1 
-            [ ("mu", Ty [CardBV 0] REAL)
-            , ("sigma", Ty [CardBV 0, CardBV 0] REAL)
+            [ ("mu", Ty [CardBV "n"] REAL)
+            , ("sigma", Ty [CardBV "n", CardBV "n"] REAL)
             ]
             real),
           ("MVNormal", FunctionTy 1 
-            [ ("mu", Ty [CardBV 0] REAL)
-            , ("sigma", Ty [CardBV 0] REAL)
+            [ ("mu", Ty [CardBV "n"] REAL)
+            , ("sigma", Ty [CardBV "n"] REAL)
             ] 
-            (Ty [CardBV 0] REAL))
+            (Ty [CardBV "n"] REAL))
         ]
 
     knownCards :: Set Text
