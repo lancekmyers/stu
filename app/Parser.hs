@@ -1,19 +1,16 @@
-module Parser where
-
--- (1)
+module Parser (parseProgram) where
 
 import AST
 import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
 import Data.Text (Text)
-
 import Text.Megaparsec
 import qualified Text.Megaparsec.Char.Lexer as L
-
 import Parser.Expr ( pExpr ) 
 import Parser.Util
 import Parser.Types ( pTy )
+import Parser.Signature (pArg)
+import Parser.Bijectors (pBij)
 
--- Parsing Expressions
 
 pDistribution :: Parser (Distribution SourcePos)
 pDistribution = do
@@ -93,25 +90,6 @@ pModelStmt = choice [pValStmt, pParamStmt, pObsStmt]
 
 pModel :: Parser (Model SourcePos)
 pModel = Model <$> many pModelStmt
-
-
--- parsing Bijectors 
-pBijNamed :: Parser (Bijector SourcePos)
-pBijNamed = do 
-  loc <- getSourcePos
-  bijName <- pIdentUpper
-  bijArgs <- parens $ (lexeme L.float) `sepBy` symbol ","
-  return . cofree $ loc :< (MkBij bijName bijArgs)
-
-pBijChain :: Parser (Bijector  SourcePos)
-pBijChain = do 
-  loc <- getSourcePos 
-  symbol "Chain"
-  bijs <- between (symbol "[") (symbol "]") $ pBij `sepBy` symbol ","
-  return . cofree $ loc :< (Chain bijs)
-
-pBij :: Parser (Bijector SourcePos)
-pBij = pBijChain <|> pBijNamed
 
 -----
 

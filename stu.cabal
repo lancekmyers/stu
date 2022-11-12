@@ -28,7 +28,8 @@ library
     exposed-modules:
         Parser, AST, CodeGen, Analysis, Types,
         Parser.Types, Parser.Expr, Parser.Util,
-        CodeGen.Python 
+        CodeGen.Python,
+        Analysis.Context, Analysis.Error, Parser.Signature
 
     -- other-extensions:
     build-depends:
@@ -66,7 +67,8 @@ executable stu
     other-modules:
         Parser, AST, CodeGen, Analysis, Types, 
         Parser.Expr, Parser.Types, Parser.Util,
-        CodeGen.Python      
+        CodeGen.Python, 
+        Analysis.Context, Analysis.Error, Parser.Signature
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
