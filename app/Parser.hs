@@ -1,4 +1,4 @@
-module Parser (parseProgram) where
+module Parser (parseProgram, parseSignatures) where
 
 import AST
 import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
@@ -8,7 +8,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Parser.Expr ( pExpr ) 
 import Parser.Util
 import Parser.Types ( pTy )
-import Parser.Signature (pArg)
+import Parser.Signature (pArg, parseSignatures)
 import Parser.Bijectors (pBij)
 
 

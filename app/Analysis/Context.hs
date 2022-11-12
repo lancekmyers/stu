@@ -5,22 +5,19 @@
 
 module Analysis.Context where 
 
-import Control.Monad.Except -- (MonadError)
-import Control.Monad.Reader
-import Control.Monad.State.Strict
-import Data.Functor.Product (Product(..))
-import Data.Functor.Const (Const(..))
-import Data.Functor.Foldable
+import Control.Monad.Except ( MonadError(throwError) ) 
+import Control.Monad.State.Strict ( MonadState(put, get) )
+import Data.Maybe (mapMaybe)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Vector as V
-import AST 
-import Types 
-import Analysis.Error
+import AST ( Decl(..), VarDomain(..) ) 
+import Types ( FunctionTy, Ty ) 
+import Analysis.Error ( TypeError(..) )
+import Data.Either (lefts, rights)
+import GHC.Generics (Generic)
 
 data Ctx = Ctx
   { vars :: Map Text Ty,
@@ -28,7 +25,15 @@ data Ctx = Ctx
     dists :: Map Text FunctionTy,
     knownCards :: Set Text,
     vardom :: Map Text VarDomain
-  } deriving Show
+  } deriving (Show)
+
+instance Semigroup Ctx where 
+  (Ctx vars funs dists knownCards vardom) <> 
+    (Ctx vars' funs' dists' knownCards' vardom') = 
+      Ctx (vars <> vars') (funs <> funs') (dists <> dists') (knownCards <> knownCards') (vardom <> vardom')
+
+instance Monoid Ctx where 
+  mempty = Ctx mempty mempty mempty mempty mempty
 
 type MonadTyCtx m = (MonadState Ctx m, MonadError TypeError m)
 
@@ -74,3 +79,28 @@ insertTy name vd ty = do
   let vars' = M.insert name ty vars
   let vardom' = M.insert name vd vardom 
   put $ Ctx vars' funs dists cards vardom'
+
+buildCtx :: [Decl] -> Ctx
+buildCtx decls = Ctx vars mempty mempty knownCards varDoms
+  where
+    vars :: Map Text Ty
+    vars = M.fromList $ mapMaybe go decls
+      where
+        go (DataDecl name ty) = Just (name, ty)
+        go _ = Nothing
+    varDoms = M.fromList $ mapMaybe go decls
+      where
+        go (DataDecl name ty) = Just (name, Data)
+        go _ = Nothing
+    knownCards :: Set Text
+    knownCards = S.fromList $ mapMaybe go decls
+      where
+        go (CardDecl name) = Just name
+        go (FactorDecl name) = Just name
+        go _ = Nothing
+
+ctxFromSigs :: [Either (Text, FunctionTy) (Text, FunctionTy, a)] -> Ctx 
+ctxFromSigs xs = Ctx mempty funs dists mempty mempty
+  where
+    funs = M.fromList $ lefts xs 
+    dists = M.fromList [(name, dty) | (name, dty, _) <- rights xs]

@@ -1,0 +1,17 @@
+fun sqrt(x: []real): []real;
+fun exp(x: []real): []real;
+fun log(x: []real): []real;
+
+fun dot(x: ['n]real, y: ['n]real): []real;
+fun matmul(a: ['m, 'n]real, b: ['n, 'o]real): ['m, 'o]real;
+fun matvec(a: ['m, 'n]real, v: ['m]real): ['n]real;
+fun matvec(v: ['m]real, a: ['m, 'n]real): ['n]real;
+
+fun mean(x : ['n]real): []real;
+
+dist Normal(mu: []real, sigma: []real): []real via Identity();
+dist Cauchy(loc: []real, scale: []real): []real via Identity();
+
+dist HalfNormal(mu: []real, sigma: []real): []real via SoftPlus(); 
+
+dist Poisson(lambda: []real): []int via Identity(); 

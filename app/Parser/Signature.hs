@@ -13,7 +13,7 @@ import Data.Text (Text)
 
 pArg :: Parser (Text, Ty)
 pArg = do 
-    name <- pIdent 
+    name <- lexeme pIdent 
     symbol ":"
     ty <- pTy 
     return (name, ty)
@@ -25,7 +25,7 @@ pArg = do
 pFunSig :: Parser (Text, FunctionTy)
 pFunSig = do
   symbol "fun"
-  name <- lexeme pIdent
+  name <- pIdent
   args <- parens $ sepBy pArg (symbol ",") 
   symbol ":" 
   ret <- pTy
@@ -40,7 +40,7 @@ pFunSig = do
 pDistSig :: Parser (Text, FunctionTy, Bijector SourcePos)
 pDistSig = do
   symbol "dist"
-  name <- lexeme pIdentUpper
+  name <- pIdentUpper
   args <- parens $ sepBy pArg (symbol ",") 
   symbol ":" 
   ret <- pTy

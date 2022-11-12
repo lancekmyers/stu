@@ -5,7 +5,7 @@
 module Main where
 
 import AST
-import Analysis ( checkModel, prettyError, buildCtx )
+import Analysis ( checkModel, prettyError, buildCtx, Ctx, ctxFromSigs)
 import CodeGen (writeProg, cgModel)
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever, guard)
@@ -18,7 +18,7 @@ import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
 import qualified Data.Text.IO as TIO
-import Parser (parseProgram)
+import Parser (parseProgram, parseSignatures)
 import Prettyprinter
 import Prettyprinter.Render.Terminal (AnsiStyle, putDoc, bold, color, Color(..))
 import System.Directory ( doesFileExist )
@@ -68,10 +68,17 @@ parseFile fname = do
     Left err -> throwError . pretty $ errorBundlePretty err
     Right prog -> return $ (fcontents, prog)
 
-checkProgram :: Monad m => Text -> Program SourcePos -> ExceptT Err m (Program Ty)
-checkProgram src (Program decls model) = do 
-  let ctx = buildCtx decls
-  (model, ctx) <- withExceptT (prettyError src) $ 
+parseSig :: FilePath -> ExceptT Err IO Ctx 
+parseSig fname = do 
+  fcontents <- lift $ TIO.readFile fname
+  case runParser parseSignatures fname fcontents of
+    Left err -> throwError . pretty $ errorBundlePretty err
+    Right ctx -> return $ ctxFromSigs ctx 
+
+checkProgram :: Monad m => Text -> Ctx -> Program SourcePos -> ExceptT Err m (Program Ty)
+checkProgram src ctx_std (Program decls model) = do 
+  let ctx = ctx_std <> buildCtx decls
+  (model, _) <- withExceptT (prettyError src) $ 
     runStateT (checkModel model) ctx
   return $ Program decls model 
 
@@ -96,7 +103,8 @@ main' (BuildOptions inFileName outFileName) = do
   liftIO . putDoc $ "Checking  " <> (annotate bold . pretty $ fname) <> line
   
   (src, prog) <- parseFile fname 
-  progChecked <- checkProgram src prog
+  std_lib <- parseSig "lib/std.stu"
+  progChecked <- checkProgram src std_lib prog
   
   liftIO . putDoc $ (annotate (color Green) $ "Success") <+> 
     "checked" <+> pretty fname <> line
@@ -110,7 +118,8 @@ main' (CheckOptions inFileName) = do
   liftIO . putDoc $ "Checking  " <> (annotate bold . pretty $ fname) <> line
   
   (src, prog) <- parseFile fname 
-  progChecked <- checkProgram src prog
+  std_lib <- parseSig "lib/std.stu"
+  progChecked <- checkProgram src std_lib prog
   
   liftIO . putDoc $ (annotate (color Green) $ "Success") <+> 
     "checked" <+> pretty fname <> line

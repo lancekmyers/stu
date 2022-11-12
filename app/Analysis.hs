@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ScopedTypeVariables, TypeFamilies #-}
 
-module Analysis (prettyError, checkModel, buildCtx) where
+module Analysis (prettyError, checkModel, buildCtx, Ctx, ctxFromSigs) where
 
 import AST
 -- (MonadReader)
@@ -158,19 +158,8 @@ checkModel (Model stmts) = Model <$> forM stmts checkModelStmt
 allSame :: Eq a => [a] -> Bool
 allSame xs = and $ zipWith (==) xs (tail xs)
 
-buildCtx :: [Decl] -> Ctx
-buildCtx decls = Ctx vars funs dists knownCards varDoms
-  where
-    vars :: Map Text Ty
-    vars = M.fromList $ mapMaybe go decls
-      where
-        go (DataDecl name ty) = Just (name, ty)
-        go _ = Nothing
-    varDoms = M.fromList $ mapMaybe go decls
-      where
-        go (DataDecl name ty) = Just (name, Data)
-        go _ = Nothing
 
+{-
     scalarFunTy = FunctionTy [("x", Ty [] REAL)] (Ty [] REAL)
     funs :: Map Text FunctionTy
     funs =
@@ -210,13 +199,8 @@ buildCtx decls = Ctx vars funs dists knownCards varDoms
             (Ty [CardBV "n"] REAL))
         ]
 
-    knownCards :: Set Text
-    knownCards = S.fromList $ mapMaybe go decls
-      where
-        go (CardDecl name) = Just name
-        go (FactorDecl name) = Just name
-        go _ = Nothing
-
+    
+-}
 
 
 
