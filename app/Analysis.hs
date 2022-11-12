@@ -132,9 +132,9 @@ checkModelStmt (ParamStmt name ty dist bij) = stmtHandler name $ do
   let err = ExpectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
   insertTy name Param ty
-  -- is it ty' - ty or ty - ty'
   let br_sh = shDiff (shape ty') (shape ty)
   let bij' = fmap (const ty') <$> bij
+  -- ensure bij' is a known bijector of the right type  
   let dist' = Distribution dname args ty (bd, br_sh)
   return (ParamStmt name ty dist' bij')
 checkModelStmt (ObsStmt name dist) = stmtHandler name $ do

@@ -74,13 +74,13 @@ check_unify = describe "unification" $ do
     property $ \tys ty ->  
       let 
         args = (\t -> ("", t)) <$> tys
-      in (unify tys (FunctionTy 0 args ty)) `shouldBe` (Right (Nothing, ty)) 
+      in (unify tys (FunctionTy args ty)) `shouldBe` (Right (Nothing, ty)) 
 
   it "broadcasts over common prefix" $ do 
     property $ \prefix tys ty ->  
       let 
         tys' = [ Ty (prefix <> sh) el | (Ty sh el) <- tys]
-        fTy = FunctionTy 0 ((\t -> ("", t)) <$> tys) ty 
+        fTy = FunctionTy ((\t -> ("", t)) <$> tys) ty 
         ty' = let Ty sh el = ty in 
           if length tys > 0 
           then Ty (prefix <> sh) el
@@ -92,7 +92,7 @@ check_unify = describe "unification" $ do
     property $ \ty ->  
       let 
         Ty sh elt = ty 
-        scalarFn = FunctionTy 0 [("x", Ty [] elt)] (Ty [] elt)
+        scalarFn = FunctionTy [("x", Ty [] elt)] (Ty [] elt)
       in (unify [ty] scalarFn) `shouldBe` (
         case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty))
       )
@@ -102,7 +102,7 @@ check_unify = describe "unification" $ do
       let 
         Ty sh elt = ty
         ty' = Ty (sh <> [card]) elt 
-        funTy = FunctionTy 1 [("x", Ty [CardBV 0] elt)] (Ty [] elt)
+        funTy = FunctionTy [("x", Ty [CardBV "n"] elt)] (Ty [] elt)
       in (unify [ty'] funTy) `shouldBe` (
         case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty))
       )

@@ -15,3 +15,4 @@ dist Cauchy(loc: []real, scale: []real): []real via Identity();
 dist HalfNormal(mu: []real, sigma: []real): []real via SoftPlus(); 
 
 dist Poisson(lambda: []real): []int via Identity(); 
+dist Binomial(prob: []real, n: []int): []int via Identity();
