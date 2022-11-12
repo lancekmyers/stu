@@ -27,6 +27,7 @@ import qualified Text.Builder as B
 import Text.Megaparsec (errorBundlePretty, runParser, SourcePos)
 import Types
 import Options.Applicative
+import Control.Monad.Reader (runReader)
 
 data Options
   = BuildOptions 
@@ -75,12 +76,12 @@ parseSig fname = do
     Left err -> throwError . pretty $ errorBundlePretty err
     Right ctx -> return $ ctxFromSigs ctx 
 
-checkProgram :: Monad m => Text -> Ctx -> Program SourcePos -> ExceptT Err m (Program Ty)
+checkProgram :: Monad m => Text -> Ctx -> Program SourcePos -> ExceptT Err m (Program Ty, Ctx)
 checkProgram src ctx_std (Program decls model) = do 
   let ctx = ctx_std <> buildCtx decls
-  (model, _) <- withExceptT (prettyError src) $ 
+  (model, ctx') <- withExceptT (prettyError src) $ 
     runStateT (checkModel model) ctx
-  return $ Program decls model 
+  return $ (Program decls model, ctx) 
 
 validateFileNames :: (FilePath, Maybe FilePath) -> ExceptT Err IO (FilePath, FilePath) 
 validateFileNames (inFileName, outFileName) = do 
@@ -104,13 +105,13 @@ main' (BuildOptions inFileName outFileName) = do
   
   (src, prog) <- parseFile fname 
   std_lib <- parseSig "lib/std.stu"
-  progChecked <- checkProgram src std_lib prog
+  (progChecked, ctx) <- checkProgram src std_lib prog
   
   liftIO . putDoc $ (annotate (color Green) $ "Success") <+> 
     "checked" <+> pretty fname <> line
 
-  let py_src = B.run $ writeProg progChecked
-  lift $ TIO.writeFile out_fname py_src  
+  let py_src = runReader (writeProg progChecked) ctx
+  lift $ TIO.writeFile out_fname $ B.run py_src  
   liftIO . putDoc $ indent 2 $ "compiled output written to" <+> pretty out_fname
 main' (CheckOptions inFileName) = do 
   (fname, _) <- validateFileNames (inFileName, Nothing)

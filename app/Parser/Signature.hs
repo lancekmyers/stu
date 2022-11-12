@@ -37,7 +37,7 @@ pFunSig = do
 --                    (BijectorF (CofreeT BijectorF Identity SourcePos)))
 --   arising from a use of `evalPrint'
 -- In a stmt of an interactive GHCi command: evalPrint it_a6a4s
-pDistSig :: Parser (Text, FunctionTy, Bijector SourcePos)
+pDistSig :: Parser (Text, FunctionTy, Bijector ())
 pDistSig = do
   symbol "dist"
   name <- pIdentUpper
@@ -47,7 +47,7 @@ pDistSig = do
   symbol "via"
   bij <- pBij
   symbol ";"
-  return $ (name, FunctionTy args ret, bij)
+  return $ (name, FunctionTy args ret, const () <$> bij)
 
-parseSignatures :: Parser [Either (Text, FunctionTy) (Text, FunctionTy, Bijector SourcePos)]
+parseSignatures :: Parser [Either (Text, FunctionTy) (Text, FunctionTy, Bijector ())]
 parseSignatures = many ((Left <$> pFunSig) <|> (Right <$> pDistSig)) <* eof

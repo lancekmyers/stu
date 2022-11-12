@@ -99,7 +99,7 @@ inferTyDist ::
   Distribution SourcePos ->
   m (Distribution Ty) 
 inferTyDist (Distribution dname args loc (_, br_sh)) = do
-  fty <- lookupDist dname
+  fty <- lookupDistTy dname
   -- annotated expressions passed as arguments 
   arg_ann <- traverse inferTy args
   let arg_tys = map cofreeHead arg_ann
@@ -157,50 +157,5 @@ checkModel (Model stmts) = Model <$> forM stmts checkModelStmt
 
 allSame :: Eq a => [a] -> Bool
 allSame xs = and $ zipWith (==) xs (tail xs)
-
-
-{-
-    scalarFunTy = FunctionTy [("x", Ty [] REAL)] (Ty [] REAL)
-    funs :: Map Text FunctionTy
-    funs =
-      M.fromList
-        [ ("sin",  scalarFunTy),
-          ("cos",  scalarFunTy),
-          ("tan",  scalarFunTy),
-          ("exp",  scalarFunTy),
-          ("ln",   scalarFunTy),
-          ("sqrt", scalarFunTy),
-          ("logit", scalarFunTy), 
-          ("mean", FunctionTy [("x", Ty [CardBV "n"] REAL)] real)
-        ]
-    real = Ty [] REAL
-    locScale = FunctionTy [("loc", real), ("scale", real)] real
-    dists :: Map Text FunctionTy
-    dists =
-      M.fromList
-        [ ("Normal", locScale),
-          ("HalfNormal", locScale),
-          ("Bernoulli", FunctionTy [("prob", real)] (Ty [] INT)),
-          ("Binomial", FunctionTy [("n", Ty [] INT), ("prob", real)] 
-            (Ty [] INT)),
-          ("Poisson", FunctionTy [("mu", real)] (Ty [] INT)),
-          ("Beta", FunctionTy [("alpha", real), ("beta", real)] (real)),
-          ("Gamma", 
-            FunctionTy [("concentration", real), ("rate", real)] (real)),
-          ("MVNormal", FunctionTy 
-            [ ("mu", Ty [CardBV "n"] REAL)
-            , ("sigma", Ty [CardBV "n", CardBV "n"] REAL)
-            ]
-            real),
-          ("MVNormal", FunctionTy 
-            [ ("mu", Ty [CardBV "n"] REAL)
-            , ("sigma", Ty [CardBV "n"] REAL)
-            ] 
-            (Ty [CardBV "n"] REAL))
-        ]
-
-    
--}
-
 
 

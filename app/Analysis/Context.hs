@@ -13,7 +13,7 @@ import qualified Data.Map.Strict as M
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
-import AST ( Decl(..), VarDomain(..) ) 
+import AST ( Decl(..), VarDomain(..), Bijector ) 
 import Types ( FunctionTy, Ty ) 
 import Analysis.Error ( TypeError(..) )
 import Data.Either (lefts, rights)
@@ -22,10 +22,10 @@ import GHC.Generics (Generic)
 data Ctx = Ctx
   { vars :: Map Text Ty,
     funs :: Map Text FunctionTy,
-    dists :: Map Text FunctionTy,
+    dists :: Map Text (FunctionTy, Bijector ()),
     knownCards :: Set Text,
     vardom :: Map Text VarDomain
-  } deriving (Show)
+  } 
 
 instance Semigroup Ctx where 
   (Ctx vars funs dists knownCards vardom) <> 
@@ -57,15 +57,25 @@ lookupFun name = do
     Nothing -> throwError $ UnBoundFunctionIdent name []
     Just ty -> return ty
 
-lookupDist ::
+lookupDistTy ::
   (MonadTyCtx m) =>
   Text ->
   m FunctionTy
-lookupDist name = do
+lookupDistTy name = do
   distsCtx <- dists <$> get
   case M.lookup name distsCtx of
     Nothing -> throwError $ UnBoundDistIdent name []
-    Just ty -> return ty
+    Just (ty, _) -> return ty
+
+lookupDistDefaultBij ::
+  (MonadTyCtx m) =>
+  Text ->
+  m (Bijector ())
+lookupDistDefaultBij name = do
+  distsCtx <- dists <$> get
+  case M.lookup name distsCtx of
+    Nothing -> throwError $ UnBoundDistIdent name []
+    Just (_, bij) -> return bij
 
 insertTy ::
   forall m.
@@ -99,8 +109,8 @@ buildCtx decls = Ctx vars mempty mempty knownCards varDoms
         go (FactorDecl name) = Just name
         go _ = Nothing
 
-ctxFromSigs :: [Either (Text, FunctionTy) (Text, FunctionTy, a)] -> Ctx 
+ctxFromSigs :: [Either (Text, FunctionTy) (Text, FunctionTy, Bijector ())] -> Ctx 
 ctxFromSigs xs = Ctx mempty funs dists mempty mempty
   where
     funs = M.fromList $ lefts xs 
-    dists = M.fromList [(name, dty) | (name, dty, _) <- rights xs]
+    dists = M.fromList [(name, (dty, bij)) | (name, dty, bij) <- rights xs]

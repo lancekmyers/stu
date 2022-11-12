@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds #-}
 
 module CodeGen  where
 
@@ -11,10 +12,11 @@ import Types
 import Control.Comonad.Trans.Cofree (CofreeF(..), tailF)
 import Data.Functor.Foldable ( fold, Recursive(cata) )
 import Data.String (IsString (..))
-import Control.Monad.Reader ( runReader ) 
-import Data.Maybe (mapMaybe)
+import Control.Monad.Reader ( runReader, MonadReader, asks ) 
+import Data.Maybe (mapMaybe, catMaybes)
 import Data.Functor.Identity (Identity(..))
 import Data.Functor.Compose (Compose(..))
+import qualified Data.Map as M
 
 import CodeGen.Python
     ( PyExp(..),
@@ -27,7 +29,11 @@ import CodeGen.Python
       (!$),
       (!.),
       (!) ) 
+import Analysis (Ctx)
+import Analysis.Context (Ctx(dists), lookupDistDefaultBij)
+import qualified Data.Text as T
 
+type CodeGenMonad m = (MonadReader Ctx m)
 
 preamble :: PyCode
 preamble = PyBlock [
@@ -40,15 +46,20 @@ preamble = PyBlock [
   ]
 
 
-cgBijDict :: forall a. Model a -> PyCode 
-cgBijDict (Model stmts) 
-  = PyAssign "bijectors" bijectors
+cgBijDict :: forall a m. CodeGenMonad m => Model a -> m PyCode 
+cgBijDict (Model stmts) = do 
+  kv <- traverse go stmts  
+  let bijectors = PyDict (catMaybes kv)
+  return $ PyAssign "bijectors" bijectors
   where 
-    go (ParamStmt name _ _ (Just bij)) = Just (name, cgBij bij)
-    go (ParamStmt name _ _ Nothing) = Just (name, tfb "Identity" @@ [])
-    go _ = Nothing
-    bijectors :: PyExp
-    bijectors = PyDict . mapMaybe go $ stmts
+    go :: ModelStmt a -> m (Maybe (Text, PyExp))
+    go (ParamStmt name _ _ (Just bij)) = return $ Just (name, cgBij bij)
+    go (ParamStmt name _ (Distribution dname _ _ _) Nothing) = do 
+      distCtx <- asks dists
+      return $ case M.lookup dname distCtx of 
+        Just (_fty, bij) -> Just (name, cgBij bij)
+        Nothing -> error $ "This is a bug. Unknown dist " ++ T.unpack dname
+    go _ = return Nothing
 
 
 cgBij :: Bijector a -> PyExp  
@@ -124,9 +135,10 @@ cgModelStmt (ObsStmt name dist) = lp
       PyMethod (cgDistribution dist) "log_prob" [obs]
 cgModelStmt (ValStmt name _ x) = PyAssign (name <> "_val") $ cgExpr x
 
-cgModel :: Program a -> PyCode 
-cgModel (Program decls model@(Model stmts)) = 
-    PyBlock [cgBijDict model, mk_log_prob]
+cgModel :: forall a m. CodeGenMonad m => Program a -> m PyCode 
+cgModel (Program decls model@(Model stmts)) = do 
+  bijDict <- cgBijDict model  
+  return $ PyBlock [bijDict, mk_log_prob]
   where 
     mk_log_prob = PyDef Nothing "mk_log_prob" ["inf_obj"] 
       (PyBlock [cgCards, cgData, log_prob, PyRet $ PyIdent [] "log_prob"])
@@ -214,9 +226,13 @@ cgPriorPred (Program _ (Model xs)) = PyDef Nothing "prior_pred" ["key", "sample_
 
   
 
-cgProg :: Program a -> PyCode
-cgProg prog = PyBlock [preamble, cgModel prog, cgPriorPred prog]
+cgProg :: forall a m. CodeGenMonad m => Program a -> m PyCode
+cgProg prog = do 
+  model' <- cgModel prog
+  return $ PyBlock [preamble, model', cgPriorPred prog]
 
 
-writeProg :: Program a -> Builder
-writeProg prog = runReader (prettyCode $ cgProg prog) 0
+writeProg :: forall a m. CodeGenMonad m => Program a -> m Builder
+writeProg prog = do 
+  prog' <- cgProg prog
+  return $ runReader (prettyCode prog') 0
