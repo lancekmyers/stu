@@ -16,7 +16,11 @@ import Parser.Expr
 import Parser.Util
 
 pCard :: Parser Card
-pCard = (CardN . fromInteger <$> integer) <|> (CardFV <$> lexeme pIdentUpper)
+pCard = choice [
+  CardN . fromInteger <$> integer,
+  CardFV <$> lexeme pIdentUpper,
+  CardBV <$> (char' '\'' *> pIdent)
+  ]
 
 pREAL :: Parser ElTy
 pREAL = symbol "real" >> pure REAL

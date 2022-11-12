@@ -130,16 +130,16 @@ shDiff (MkShape sh') (MkShape sh) =
     prefix = V.take n larger
 
 data FunctionTy
-  = FunctionTy Int [(Text, Ty)] Ty
+  = FunctionTy [(Text, Ty)] Ty
 
 instance Show FunctionTy where
-  show (FunctionTy _ args ret) = "(" ++ args_shown ++ ") -> " ++ (show ret)
+  show (FunctionTy args ret) = "(" ++ args_shown ++ ") -> " ++ (show ret)
     where
       showArg (name, ty) = T.unpack name <> " : " <> (show ty)
       args_shown = intercalate ", " $ showArg <$> args
 
 instance Pretty FunctionTy where
-  pretty (FunctionTy _ args ret) = align $ tupled args' <+> "->" <+> (pretty ret)
+  pretty (FunctionTy args ret) = align $ tupled args' <+> "->" <+> (pretty ret)
     where
       args' = [pretty name <+> ":" <+> pretty ty | (name, ty) <- args]
 
@@ -185,10 +185,10 @@ substitute cmap (Ty sh elty) = Ty (MkShape sh') elty
 
 -- | unifies function type with arguments, returns error or function return type and broadcasting shape 
 unify :: [Ty] -> FunctionTy -> Either TyErr (Maybe Shape, Ty)
-unify [] (FunctionTy _ [] ty) = Right (Nothing, ty)
-unify [] (FunctionTy n xs ty) = Left $ TyErr ""
-unify xs (FunctionTy n [] ty) = Left $ TyErr ""
-unify tys (FunctionTy n args ret) = do
+unify [] (FunctionTy [] ty) = Right (Nothing, ty)
+unify [] (FunctionTy xs ty) = Left $ TyErr ""
+unify xs (FunctionTy [] ty) = Left $ TyErr ""
+unify tys (FunctionTy args ret) = do
   let err x = Left (TyErr x)
 
   let tys' = map snd args

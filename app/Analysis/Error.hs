@@ -81,7 +81,7 @@ prettyError _ (IncompatibleShapes sh1 sh2) =
         "Does not broadcast with",
         indent 2 sh2'
       ]
-prettyError _ (BadFunApp fname given fty@(FunctionTy _ argTys ret)) 
+prettyError _ (BadFunApp fname given fty@(FunctionTy argTys ret)) 
   | (length argTys /= length given) = vsep 
     [ "The function" <+> (bad $ pretty fname) <+> "was applied to the wrong number of arguments"
     , (emph $ pretty fname) <+> "expects" 
@@ -99,7 +99,7 @@ prettyError _ (BadFunApp fname given fty@(FunctionTy _ argTys ret))
       , indent 2 "expected:" <+> (pretty expTy)
       , indent 2 "provided:" <+> (pretty gotTy)
       ]
-prettyError _ (BadDistr dname given fty@(FunctionTy _ argTys ret)) 
+prettyError _ (BadDistr dname given fty@(FunctionTy argTys ret)) 
   | (length argTys /= length given) = vsep 
     [ "The distribution" <+> (bad $ pretty dname) <+> "was applied to the wrong number of arguments"
     , (emph $ pretty dname) <+> "expects" 

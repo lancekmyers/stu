@@ -171,7 +171,7 @@ buildCtx decls = Ctx vars funs dists knownCards varDoms
         go (DataDecl name ty) = Just (name, Data)
         go _ = Nothing
 
-    scalarFunTy = FunctionTy 0 [("x", Ty [] REAL)] (Ty [] REAL)
+    scalarFunTy = FunctionTy [("x", Ty [] REAL)] (Ty [] REAL)
     funs :: Map Text FunctionTy
     funs =
       M.fromList
@@ -182,28 +182,28 @@ buildCtx decls = Ctx vars funs dists knownCards varDoms
           ("ln",   scalarFunTy),
           ("sqrt", scalarFunTy),
           ("logit", scalarFunTy), 
-          ("mean", FunctionTy 1 [("x", Ty [CardBV "n"] REAL)] real)
+          ("mean", FunctionTy [("x", Ty [CardBV "n"] REAL)] real)
         ]
     real = Ty [] REAL
-    locScale = FunctionTy 0 [("loc", real), ("scale", real)] real
+    locScale = FunctionTy [("loc", real), ("scale", real)] real
     dists :: Map Text FunctionTy
     dists =
       M.fromList
         [ ("Normal", locScale),
           ("HalfNormal", locScale),
-          ("Bernoulli", FunctionTy 0 [("prob", real)] (Ty [] INT)),
-          ("Binomial", FunctionTy 0 [("n", Ty [] INT), ("prob", real)] 
+          ("Bernoulli", FunctionTy [("prob", real)] (Ty [] INT)),
+          ("Binomial", FunctionTy [("n", Ty [] INT), ("prob", real)] 
             (Ty [] INT)),
-          ("Poisson", FunctionTy 0 [("mu", real)] (Ty [] INT)),
-          ("Beta", FunctionTy 0 [("alpha", real), ("beta", real)] (real)),
+          ("Poisson", FunctionTy [("mu", real)] (Ty [] INT)),
+          ("Beta", FunctionTy [("alpha", real), ("beta", real)] (real)),
           ("Gamma", 
-            FunctionTy 0 [("concentration", real), ("rate", real)] (real)),
-          ("MVNormal", FunctionTy 1 
+            FunctionTy [("concentration", real), ("rate", real)] (real)),
+          ("MVNormal", FunctionTy 
             [ ("mu", Ty [CardBV "n"] REAL)
             , ("sigma", Ty [CardBV "n", CardBV "n"] REAL)
             ]
             real),
-          ("MVNormal", FunctionTy 1 
+          ("MVNormal", FunctionTy 
             [ ("mu", Ty [CardBV "n"] REAL)
             , ("sigma", Ty [CardBV "n"] REAL)
             ] 

@@ -6,7 +6,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Parser.Util
 import Parser.Types ( pTy )
 import Parser.Bijectors ( pBij )
-import Types ( Ty ) 
+import Types ( Ty, FunctionTy(..) ) 
 import AST ( Bijector )
 import Data.Text (Text)
 
@@ -20,7 +20,9 @@ pArg = do
 
 -- >>> runParser pFunSig "" "fun sin(x: []real): []real;"
 -- Right ("sin",[("x",[]real)],[]real)
-pFunSig :: Parser (Text, [(Text, Ty)], Ty)
+-- >>> runParser pFunSig "" "fun matmul(a: ['m, 'n]real, b: ['n, 'o]real): ['m, 'o]real;"
+-- Right ("matmul",[("a",['m,'n]real),("b",['n,'o]real)],['m,'o]real)
+pFunSig :: Parser (Text, FunctionTy)
 pFunSig = do
   symbol "fun"
   name <- lexeme pIdent
@@ -28,14 +30,14 @@ pFunSig = do
   symbol ":" 
   ret <- pTy
   symbol ";"
-  return $ (name, args, ret)
+  return $ (name, FunctionTy args ret)
 
 -- >>> runParser pDistSig "" "dist Exponential(lambda: []real): []real via SoftPlus();"
 -- No instance for (Show
 --                    (BijectorF (CofreeT BijectorF Identity SourcePos)))
 --   arising from a use of `evalPrint'
--- In a stmt of an interactive GHCi command: evalPrint it_aMiS
-pDistSig :: Parser (Text, [(Text, Ty)], Ty, Bijector SourcePos)
+-- In a stmt of an interactive GHCi command: evalPrint it_a6a4s
+pDistSig :: Parser (Text, FunctionTy, Bijector SourcePos)
 pDistSig = do
   symbol "dist"
   name <- lexeme pIdentUpper
@@ -45,5 +47,7 @@ pDistSig = do
   symbol "via"
   bij <- pBij
   symbol ";"
-  return $ (name, args, ret, bij)
+  return $ (name, FunctionTy args ret, bij)
 
+parseSignatures :: Parser [Either (Text, FunctionTy) (Text, FunctionTy, Bijector SourcePos)]
+parseSignatures = many ((Left <$> pFunSig) <|> (Right <$> pDistSig)) <* eof
