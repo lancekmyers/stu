@@ -92,6 +92,31 @@ cgExpr = cata (go . proj)
     go (FunAppF f xs) = jnp f @@ xs
     go (GatherF xs is) = PyGet xs is -- jnp "gather" @@ [xs, is]
 
+cgFun (FunAppF "mean" xs) = PyApply "jnp.mean" xs [("axis", PyNum $ Right (-1))]
+cgFun (FunAppF f xs) = case f of 
+  "matmul" -> jnp "dot" @@ xs
+  "matvec" -> jnp "dot" @@ xs
+  "vecmat" -> jnp "dot" @@ xs
+  "dot" -> jnp "dot" @@ xs
+
+  "sqrt" -> jnp "sqrt" @@ xs
+  "exp" -> jnp "exp" @@ xs
+  "log" -> jnp "log" @@ xs
+
+  "sin" -> jnp "sin" @@ xs
+  "cos" -> jnp "cos" @@ xs
+  "tan" -> jnp "tan" @@ xs
+
+  "tanh" -> jnp "tanh" @@ xs
+  "sinh" -> jnp "sinh" @@ xs
+  "cosh" -> jnp "cosh" @@ xs
+
+  "asin" -> jnp "asin" @@ xs
+  "acos" -> jnp "acos" @@ xs
+  "atan" -> jnp "atan" @@ xs
+
+  _ -> error $ "Encoutered function " ++ (T.unpack f) ++ " during codegen"
+
 
 sample :: Maybe Shape -> PyExp -> PyExp 
 sample Nothing dist = dist 
