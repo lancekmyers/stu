@@ -16,7 +16,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics ( Generic, (:+:) )
 import Types (Ty, Shape)
-import Data.Fix 
 import Text.Megaparsec.Pos (SourcePos)
 
 type Name = Text
