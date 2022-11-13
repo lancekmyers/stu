@@ -25,10 +25,11 @@ import Data.Maybe (fromMaybe, mapMaybe)
 import Analysis.Error ( TypeError(..), blame, prettyError )
 import Analysis.Context
 import Analysis.Expr
-
+import Analysis.FunDef (checkFunDef) 
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
+
 inferTyDist ::
   (MonadTyCtx m) =>
   Distribution SourcePos ->

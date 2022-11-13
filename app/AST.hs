@@ -35,7 +35,9 @@ instance Show BinOp where
   show Mul = "*"
   show Div = "/"
 
-data VarDomain = Unknown | Param | Data | Val deriving (Eq, Ord, Show)
+data VarDomain 
+  = Unknown | Param | Data | Val 
+  | Bound | Local deriving (Eq, Ord, Show)
 
 data ExprF a
   = ArithF BinOp a a

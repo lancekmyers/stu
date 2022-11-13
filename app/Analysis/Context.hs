@@ -20,20 +20,19 @@ import Data.Either (lefts, rights)
 import GHC.Generics (Generic)
 
 data Ctx = Ctx
-  { vars :: Map Text Ty,
+  { vars :: Map Text (Ty, VarDomain),
     funs :: Map Text FunctionTy,
     dists :: Map Text (FunctionTy, Bijector ()),
-    knownCards :: Set Text,
-    vardom :: Map Text VarDomain
+    knownCards :: Set Text
   } 
 
 instance Semigroup Ctx where 
-  (Ctx vars funs dists knownCards vardom) <> 
-    (Ctx vars' funs' dists' knownCards' vardom') = 
-      Ctx (vars <> vars') (funs <> funs') (dists <> dists') (knownCards <> knownCards') (vardom <> vardom')
+  (Ctx vars funs dists knownCards) <> 
+    (Ctx vars' funs' dists' knownCards') = 
+      Ctx (vars <> vars') (funs <> funs') (dists <> dists') (knownCards <> knownCards')
 
 instance Monoid Ctx where 
-  mempty = Ctx mempty mempty mempty mempty mempty
+  mempty = Ctx mempty mempty mempty mempty
 
 type MonadTyCtx m = (MonadState Ctx m, MonadError TypeError m)
 
@@ -45,7 +44,7 @@ lookupVar name = do
   varCtx <- vars <$> get
   case M.lookup name varCtx of
     Nothing -> throwError $ UnBoundVarIdent name []
-    Just ty -> return ty
+    Just (ty, _vd) -> return ty
 
 lookupFun ::
   (MonadTyCtx m) =>
@@ -85,22 +84,17 @@ insertTy ::
   Ty ->
   m ()
 insertTy name vd ty = do
-  Ctx vars funs dists cards vardom <- get
-  let vars' = M.insert name ty vars
-  let vardom' = M.insert name vd vardom 
-  put $ Ctx vars' funs dists cards vardom'
+  Ctx vars funs dists cards <- get
+  let vars' = M.insert name (ty, vd) vars
+  put $ Ctx vars' funs dists cards
 
 buildCtx :: [Decl] -> Ctx
-buildCtx decls = Ctx vars mempty mempty knownCards varDoms
+buildCtx decls = Ctx vars mempty mempty knownCards
   where
-    vars :: Map Text Ty
+    vars :: Map Text (Ty, VarDomain)
     vars = M.fromList $ mapMaybe go decls
       where
-        go (DataDecl name ty) = Just (name, ty)
-        go _ = Nothing
-    varDoms = M.fromList $ mapMaybe go decls
-      where
-        go (DataDecl name ty) = Just (name, Data)
+        go (DataDecl name ty) = Just (name, (ty, Data))
         go _ = Nothing
     knownCards :: Set Text
     knownCards = S.fromList $ mapMaybe go decls
@@ -111,14 +105,14 @@ buildCtx decls = Ctx vars mempty mempty knownCards varDoms
 
 annotateVarDomain :: (MonadTyCtx m) => ExprF a -> m (ExprF a)
 annotateVarDomain (VarF name _) = do 
-  vardoms <- gets vardom
-  case M.lookup name vardoms of 
+  vars <- gets vars
+  case M.lookup name vars of 
     Nothing -> throwError $ UnBoundVarIdent name []
-    Just d  -> return $ VarF name d
+    Just (t, vd)  -> return $ VarF name vd
 annotateVarDomain x = return x
 
 ctxFromSigs :: [Either (Text, FunctionTy) (Text, FunctionTy, Bijector ())] -> Ctx 
-ctxFromSigs xs = Ctx mempty funs dists mempty mempty
+ctxFromSigs xs = Ctx mempty funs dists mempty
   where
     funs = M.fromList $ lefts xs 
     dists = M.fromList [(name, (dty, bij)) | (name, dty, bij) <- rights xs]
