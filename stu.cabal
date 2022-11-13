@@ -30,7 +30,8 @@ library
         CodeGen, CodeGen.Python,
         Analysis, Analysis.Context, Analysis.Error, 
         Parser, Parser.Types, Parser.Expr, 
-        Parser.Util, Parser.Signature, Parser.Bijectors
+        Parser.Util, Parser.Signature, Parser.Bijectors,
+        Parser.DistDef, Parser.FunDef
 
     -- other-extensions:
     build-depends:
@@ -52,7 +53,8 @@ library
         free == 5.*,
         repa == 3.4.*, 
         optparse-applicative == 0.17.*, 
-        comonad == 5.*
+        comonad == 5.*, 
+        data-fix == 0.3.*
 
     hs-source-dirs:   app
     default-language: Haskell2010

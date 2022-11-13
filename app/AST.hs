@@ -5,6 +5,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeFamilies, StandaloneDeriving #-}
 
 module AST where
@@ -13,9 +14,9 @@ import Control.Comonad.Trans.Cofree (CofreeF(..), Cofree)
 
 import Data.Text (Text)
 import qualified Data.Text as T
-import GHC.Generics ( Generic )
+import GHC.Generics ( Generic, (:+:) )
 import Types (Ty, Shape)
-
+import Data.Fix 
 import Text.Megaparsec.Pos (SourcePos)
 
 type Name = Text
@@ -91,3 +92,41 @@ data Program ann = Program
   { decls :: [Decl]
   , model :: Model ann
   }
+--- 
+
+data BijDef a = BijDef (FunDef a) (FunDef a) (FunDef a) 
+  -- fwd inv ldj 
+
+data FunDef ann = FunDef 
+  { _funName :: Text
+  , _args :: [(Text, Ty)]
+  , _ret  :: Ty 
+  , _body :: (FunBody ann)
+  }
+
+data DistDef ann = DistDef 
+  { _distName :: Text 
+  , _params :: [(Text, Ty)] 
+  , _eventTy :: Ty
+  , _lpdf :: FunDef ann
+  , _sample :: SampleBody ann
+  , _bij :: Bijector ann
+  }
+
+data FunBody ann 
+  = LetPrimIn Text Ty (PrimApp ann) (FunBody ann)
+  | FunLetIn  Text Ty (Expr ann) (FunBody ann) 
+  | FunRet    (Expr ann)
+
+data SampleBody ann 
+  = SampleIn    Text Ty (Distribution ann) (SampleBody ann)
+  | SampleLetIn Text Ty (Expr ann) (SampleBody ann) 
+  | SampleRet    (Expr ann)
+
+data Library a = Library {
+  _funs  :: [FunDef  a],
+  _dists :: [DistDef a] 
+}
+
+data PrimApp  a = PrimApp Text [Expr a]
+data PrimSample = PrimUniformRNG | PrimNormalRNG 

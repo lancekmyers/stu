@@ -10,16 +10,7 @@ import Parser.Util
 import Parser.Types ( pTy )
 import Parser.Signature (pArg, parseSignatures)
 import Parser.Bijectors (pBij)
-
-
-pDistribution :: Parser (Distribution SourcePos)
-pDistribution = do
-  loc <- getSourcePos
-  distName <- pIdentUpper
-  distArgs <- parens $ pExpr `sepBy` symbol ","
-  return $ Distribution distName distArgs loc (Nothing, Nothing)
-
-------
+import Parser.Distribution (pDistribution)
 
 semi :: Parser Text
 semi = symbol ";"
