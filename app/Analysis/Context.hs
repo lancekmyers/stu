@@ -6,14 +6,14 @@
 module Analysis.Context where 
 
 import Control.Monad.Except ( MonadError(throwError) ) 
-import Control.Monad.State.Strict ( MonadState(put, get) )
+import Control.Monad.State.Strict ( MonadState(put, get), gets )
 import Data.Maybe (mapMaybe)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
-import AST ( Decl(..), VarDomain(..), Bijector ) 
+import AST ( Decl(..), VarDomain(..), Bijector, ExprF (VarF) ) 
 import Types ( FunctionTy, Ty ) 
 import Analysis.Error ( TypeError(..) )
 import Data.Either (lefts, rights)
@@ -108,6 +108,14 @@ buildCtx decls = Ctx vars mempty mempty knownCards varDoms
         go (CardDecl name) = Just name
         go (FactorDecl name) = Just name
         go _ = Nothing
+
+annotateVarDomain :: (MonadTyCtx m) => ExprF a -> m (ExprF a)
+annotateVarDomain (VarF name _) = do 
+  vardoms <- gets vardom
+  case M.lookup name vardoms of 
+    Nothing -> throwError $ UnBoundVarIdent name []
+    Just d  -> return $ VarF name d
+annotateVarDomain x = return x
 
 ctxFromSigs :: [Either (Text, FunctionTy) (Text, FunctionTy, Bijector ())] -> Ctx 
 ctxFromSigs xs = Ctx mempty funs dists mempty mempty
