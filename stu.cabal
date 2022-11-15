@@ -27,9 +27,10 @@ library
 
     exposed-modules:
         AST, Types,
-        CodeGen, CodeGen.Python,
-        Analysis, Analysis.Context, Analysis.Error, 
-        Parser, Parser.Types, Parser.Expr, 
+        CodeGen, CodeGen.Python, CodeGen.Expr, CodeGen.Util,
+        Analysis, Analysis.Context, Analysis.Error,
+        Analysis.Expr, Analysis.FunDef, 
+        Parser, Parser.Types, Parser.Expr, Parser.Distribution,
         Parser.Util, Parser.Signature, Parser.Bijectors,
         Parser.DistDef, Parser.FunDef
 
