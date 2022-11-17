@@ -1,4 +1,4 @@
-module Parser (parseProgram, parseSignatures) where
+module Parser (parseProgram, parseSignatures, parseLibrary) where
 
 import AST
 import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
@@ -8,9 +8,12 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Parser.Expr ( pExpr ) 
 import Parser.Util
 import Parser.Types ( pTy )
-import Parser.Signature (pArg, parseSignatures)
+import Parser.Signature (pArg, parseSignatures, pDistSig)
 import Parser.Bijectors (pBij)
 import Parser.Distribution (pDistribution)
+import Parser.FunDef (pFunDef)
+import Parser.DistDef (pDistDef)
+
 
 semi :: Parser Text
 semi = symbol ";"
@@ -92,3 +95,15 @@ parseProgram = do
   model <- pModel 
   eof 
   return $ Program decls model
+
+
+parseLibrary :: Parser (Library SourcePos)
+parseLibrary = do 
+  defs <- many $ (Left <$> pFunDef) <|> (Right <$> pDistDef)
+  eof
+  return $ foldr go (Library [] []) defs
+  where 
+    go :: Either (FunDef a) (DistDef a) -> Library a -> Library a
+    go def (Library funs dists) = case def of   
+      Left fdef -> Library (fdef : funs) dists
+      Right ddef -> Library funs (ddef : dists)   

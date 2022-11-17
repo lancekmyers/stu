@@ -88,6 +88,17 @@ insertTy name vd ty = do
   let vars' = M.insert name (ty, vd) vars
   put $ Ctx vars' funs dists cards
 
+insertFun ::
+  forall m.
+  (MonadTyCtx m) =>
+  Text ->
+  FunctionTy -> 
+  m ()
+insertFun name fty = do
+  Ctx vars funs dists cards <- get
+  let funs' = M.insert name fty funs
+  put $ Ctx vars funs' dists cards
+
 buildCtx :: [Decl] -> Ctx
 buildCtx decls = Ctx vars mempty mempty knownCards
   where

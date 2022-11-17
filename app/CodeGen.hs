@@ -33,6 +33,7 @@ import Analysis.Context (Ctx(dists), lookupDistDefaultBij)
 import qualified Data.Text as T
 import CodeGen.Expr ( cgExpr )
 import CodeGen.Util
+import CodeGen.FunDef (cgFunDef)
 
 preamble :: PyCode
 preamble = PyBlock [
@@ -210,4 +211,9 @@ cgProg prog = do
 writeProg :: forall a m. CodeGenMonad m => Program a -> m Builder
 writeProg prog = do 
   prog' <- cgProg prog
+  return $ runReader (prettyCode prog') 0
+
+writeLib :: forall a m. CodeGenMonad m => Library a -> m Builder
+writeLib lib = do 
+  prog' <- pure . PyBlock $ cgFunDef <$> (_funs lib)
   return $ runReader (prettyCode prog') 0

@@ -16,29 +16,23 @@ import CodeGen.Python
 import CodeGen.Expr
 import qualified Data.Text as T
 
-cgFunDef :: FunDef Ty -> PyCode
+cgFunDef :: FunDef a -> PyCode
 cgFunDef (FunDef name args ret body) = PyDef Nothing name' argNames body' 
     where 
-        argNames = fst <$> args 
+        argNames = ("_bd_" <>) . fst <$> args 
         name' = "_func_" <> name
         body' = cgFunBody body
 
-cgFunBody :: FunBody Ty -> PyCode 
+cgFunBody :: FunBody a -> PyCode 
 cgFunBody (FunRet val) = PyRet $ cgExpr val
 cgFunBody (LetPrimIn x _ pApp rest) = 
-    PyBlock [ PyAssign x (cgPrimApp pApp),  cgFunBody rest ] 
+    PyBlock [ PyAssign ("_local_" <> x) (cgPrimApp pApp),  cgFunBody rest ] 
 cgFunBody (FunLetIn x _ val rest) = 
-    PyBlock [ PyAssign x (cgExpr val),  cgFunBody rest ]
+    PyBlock [ PyAssign ("_local_" <> x) (cgExpr val),  cgFunBody rest ]
 
 
 cgPrimApp :: PrimApp a -> PyExp
-cgPrimApp (PrimApp fname args) = (PyIdent [] fname) @@ (cgExpr <$> args)
-
--- data PrimApp  a = PrimApp Text [Expr a]
-
-{-
-data FunBody ann 
-  = LetPrimIn Text Ty (PrimApp ann) (FunBody ann)
-  | FunLetIn  Text Ty (Expr ann) (FunBody ann) 
-  | FunRet    (Expr ann)
--}
+cgPrimApp (PrimApp name args) = (PyIdent mod f) @@ (cgExpr <$> args)
+    where 
+        mod = init name 
+        f = last name

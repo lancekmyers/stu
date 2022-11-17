@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-module Analysis.FunDef where 
+module Analysis.DistDef where 
 
 import Control.Monad.Except (MonadError(..))
 import Control.Monad.State.Strict (gets, withStateT, MonadState (get))
@@ -14,16 +14,62 @@ import Control.Comonad.Identity (Identity (runIdentity, Identity))
 import Data.Functor.Compose (Compose(getCompose, Compose))
 import Analysis.Error ( TypeError(..), blame, prettyError )
 import Analysis.Context ( MonadTyCtx, Ctx(vars), insertTy, insertFun )
-import Analysis.Expr ( inferTy ) 
+import Analysis.Expr ( inferTy )
+import Analysis.FunDef ( checkFunDef, deleteBoundVars  ) 
 import AST
     ( PrimApp(PrimApp),
-      FunBody(..),
-      FunDef(FunDef),
-      VarDomain(Bound, Local) ) 
+      FunDef(..),
+      DistDef(..),
+      VarDomain(Bound, Local), SampleBody (..), Distribution (Distribution) ) 
+import Analysis.Distribution
+
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
+
+checkDistDef :: (MonadTyCtx m) => 
+    DistDef SourcePos -> m (DistDef Ty)
+checkDistDef (DistDef name args eventTy lpdf sample bij) = do 
+    lpdf' <- checkFunDef lpdf 
+    (eventTy', sample') <- checkSample sample
+    let err = ExpectedGot eventTy eventTy'
+    when (eventTy' /= eventTy) $ throwError err 
+    let bij' = (const eventTy) <$> bij
+    return $ DistDef name args eventTy lpdf' sample' bij'
+
+checkSample :: (MonadTyCtx m) => SampleBody SourcePos -> m (Ty, SampleBody Ty) 
+checkSample (SampleRet val) = do
+    val' <- inferTy val
+    let ty' = cofreeHead val' 
+    deleteBoundVars
+    return (ty', SampleRet val')
+checkSample (SampleIn name ty dist rest) = do 
+    dist'@(Distribution _ _ ty' batch_info) <- inferTyDist dist
+    let err = ExpectedGot ty ty'
+    when (not $ ty' `broadcastsTo` ty) (throwError err)
+    insertTy name Local ty
+    (eventTy, rest') <- checkSample rest
+    return (eventTy, SampleIn name ty dist' rest') 
+checkSample (SampleLetIn name ty val rest) = do 
+    val' <- inferTy val
+    let ty' = cofreeHead val'
+    let err = ExpectedGot ty ty'
+    when (not $ ty' `broadcastsTo` ty) (throwError err)
+    insertTy name Local ty 
+    (eventTy, rest') <- checkSample rest
+    return (eventTy, SampleLetIn name ty val' rest') 
+
+    --SampleRet <$> (inferTy val)
+{-
+data SampleBody ann 
+  = SampleIn    Text Ty (Distribution ann) (SampleBody ann)
+  | SampleLetIn Text Ty (Expr ann) (SampleBody ann) 
+  | SampleRet    (Expr ann)
+-}
+
+-- FunDef name args ret body
+{-
 deleteBoundVars :: (MonadTyCtx m) => m ()
 deleteBoundVars = do 
     ctx <- get 
@@ -60,3 +106,4 @@ checkFunBody (FunLetIn name ty val rest) = do
 checkFunBody (FunRet expr) = do 
     ty <- inferTy expr
     return (cofreeHead ty, FunRet ty) 
+-}

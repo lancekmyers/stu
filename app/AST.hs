@@ -129,5 +129,5 @@ data Library a = Library {
   _dists :: [DistDef a] 
 }
 
-data PrimApp  a = PrimApp Text [Expr a]
+data PrimApp  a = PrimApp [Text] [Expr a]
 data PrimSample = PrimUniformRNG | PrimNormalRNG 

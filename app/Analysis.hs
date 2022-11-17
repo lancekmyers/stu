@@ -3,9 +3,14 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ScopedTypeVariables, TypeFamilies #-}
 
-module Analysis (prettyError, checkModel, buildCtx, Ctx, ctxFromSigs) where
+module Analysis (prettyError, checkModel, buildCtx, Ctx, ctxFromSigs, checkFunDef, checkLib) where
 
 import AST
+    ( Distribution(..),
+      Library(Library),
+      Model(..),
+      ModelStmt(..),
+      VarDomain(Data, Val, Param) )
 -- (MonadReader)
 import Control.Monad.Except (MonadError(..))
 import Control.Monad.State.Strict (gets)
@@ -26,23 +31,11 @@ import Analysis.Error ( TypeError(..), blame, prettyError )
 import Analysis.Context
 import Analysis.Expr
 import Analysis.FunDef (checkFunDef) 
+import Analysis.Distribution (inferTyDist) 
+import Analysis.DistDef (checkDistDef)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
-
-inferTyDist ::
-  (MonadTyCtx m) =>
-  Distribution SourcePos ->
-  m (Distribution Ty) 
-inferTyDist (Distribution dname args loc (_, br_sh)) = do
-  fty <- lookupDistTy dname
-  -- annotated expressions passed as arguments 
-  arg_ann <- traverse inferTy args
-  let arg_tys = map cofreeHead arg_ann
-  case unify arg_tys fty of
-    Left _ -> throwError $ Blame loc $ BadDistr dname arg_tys fty
-    Right (bd, ret) -> return $
-      Distribution dname arg_ann ret (shRank <$> bd, br_sh)
 
 stmtHandler ::
   (MonadError TypeError m) =>
@@ -94,4 +87,10 @@ checkModel (Model stmts) = Model <$> forM stmts checkModelStmt
 allSame :: Eq a => [a] -> Bool
 allSame xs = and $ zipWith (==) xs (tail xs)
 
-
+checkLib :: forall m. (MonadTyCtx m, MonadError TypeError m) =>
+  Library SourcePos ->
+  m (Library Ty)
+checkLib (Library funs dists) = do 
+  funs' <- traverse checkFunDef funs
+  dists' <- traverse checkDistDef dists
+  return $ Library funs' dists'

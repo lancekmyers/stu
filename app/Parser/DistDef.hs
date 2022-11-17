@@ -34,7 +34,7 @@ pDistDef = do
     eventTy <- pTy
     symbol "begin"    
     lpdf <- pLPDF eventTy 
-    sampler <- between (symbol "begin") (symbol "end") pSampleBody
+    sampler <- pSample
     bij <- pBij
     symbol "end"
 

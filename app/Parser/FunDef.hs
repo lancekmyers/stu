@@ -20,7 +20,7 @@ pArg = do
     ty <- pTy 
     return (name, ty)
 
--- >>> const () <$> runParser pFunDef "" "fun foo(): []real\n\tbegin ret 4; end"
+-- >>> const () <$> runParser pFunDef "" "fun foo(): []real\nbegin \n\tret 4; end"
 -- Right ()
 pFunDef :: Parser (FunDef SourcePos)
 pFunDef = do 
@@ -56,7 +56,7 @@ pLetIn = do
 -- Right ()
 pLetPrimIn :: Parser (FunBody SourcePos)
 pLetPrimIn = do 
-    symbol "plet"
+    symbol "%let"
     name <- lexeme pIdent 
     lexeme $ symbol ":" 
     ty <- pTy
@@ -78,6 +78,6 @@ pRet = do
 pPrimApp :: Parser (PrimApp SourcePos)
 pPrimApp = do 
     char '%'
-    name <- pIdent
+    name <- pIdent `sepBy` (symbol ".")
     args <- parens $ (pExpr `sepBy` (symbol ","))
     return $ PrimApp name args

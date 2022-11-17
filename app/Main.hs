@@ -5,8 +5,8 @@
 module Main where
 
 import AST
-import Analysis ( checkModel, prettyError, buildCtx, Ctx, ctxFromSigs)
-import CodeGen (writeProg, cgModel)
+import Analysis ( checkModel, prettyError, buildCtx, Ctx, ctxFromSigs, checkLib)
+import CodeGen (writeProg, cgModel, writeLib)
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever, guard)
 import Control.Monad.Except
@@ -18,7 +18,7 @@ import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
 import qualified Data.Text.IO as TIO
-import Parser (parseProgram, parseSignatures)
+import Parser (parseProgram, parseSignatures, parseLibrary)
 import Prettyprinter
 import Prettyprinter.Render.Terminal (AnsiStyle, putDoc, bold, color, Color(..))
 import System.Directory ( doesFileExist )
@@ -36,11 +36,13 @@ data Options
     }
   | CheckOptions 
     { inFileName' :: FilePath }
+  | LibOptions FilePath
 
 options :: Parser Options
 options = subparser $ 
   (command "build" (info buildOptions $ progDesc "Build a stu model"))
   <> (command "check" (info checkOptions $ progDesc "Check a stu model without building"))
+  <> (command "lib" (info libOptions $ progDesc "Check a stu library and compile"))
   where 
     buildOptions = BuildOptions 
       <$> (argument str (metavar "MODEL" <> help "File containing model to compile"))
@@ -51,6 +53,11 @@ options = subparser $
           )
     checkOptions = CheckOptions 
       <$> (argument str (metavar "MODEL" <> help "File containing model to compile"))
+
+    libOptions = LibOptions 
+      <$> (argument str (metavar "LIBRARY" <> help "File containing librar"))
+
+    
 
 {-
    "         __       "
@@ -69,6 +76,13 @@ parseFile fname = do
     Left err -> throwError . pretty $ errorBundlePretty err
     Right prog -> return $ (fcontents, prog)
 
+parseLibFile :: FilePath -> ExceptT Err IO (Text, Library SourcePos)
+parseLibFile fname = do
+  fcontents <- lift $ TIO.readFile fname
+  case runParser parseLibrary fname fcontents of
+    Left err -> throwError . pretty $ errorBundlePretty err
+    Right lib -> return $ (fcontents, lib)
+
 parseSig :: FilePath -> ExceptT Err IO Ctx 
 parseSig fname = do 
   fcontents <- lift $ TIO.readFile fname
@@ -82,6 +96,12 @@ checkProgram src ctx_std (Program decls model) = do
   (model, ctx') <- withExceptT (prettyError src) $ 
     runStateT (checkModel model) ctx
   return $ (Program decls model, ctx) 
+
+checkLibrary:: Monad m => Text -> Library SourcePos -> ExceptT Err m (Library Ty, Ctx)
+checkLibrary src lib = do 
+  (lib', ctx') <- withExceptT (prettyError src) $ 
+    runStateT (checkLib lib) mempty
+  return $ (lib', ctx') 
 
 validateFileNames :: (FilePath, Maybe FilePath) -> ExceptT Err IO (FilePath, FilePath) 
 validateFileNames (inFileName, outFileName) = do 
@@ -124,6 +144,14 @@ main' (CheckOptions inFileName) = do
   
   liftIO . putDoc $ (annotate (color Green) $ "Success") <+> 
     "checked" <+> pretty fname <> line
+main' (LibOptions libFile) = do
+  (fname, out_fname) <- validateFileNames (libFile, Nothing)
+  (src, lib) <- parseLibFile fname 
+  (libChecked, ctx) <- checkLibrary src lib
+  -- let _ = traverse checkFunDef (_funs prog)
+  let py_src = runReader (writeLib libChecked) mempty
+  lift $ TIO.writeFile out_fname $ B.run py_src  
+  liftIO . putDoc $ indent 2 $ "compiled output written to" <+> pretty out_fname
 
 main :: IO ()
 main = mainHandled =<< execParser opts
