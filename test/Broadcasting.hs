@@ -106,3 +106,7 @@ check_unify = describe "unification" $ do
       in (unify [ty'] funTy) `shouldBe` (
         case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty))
       )
+
+
+-- check to see if vector functions can be applied to scalars
+-- sum(1.0) should fail

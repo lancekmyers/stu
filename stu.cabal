@@ -28,8 +28,9 @@ library
     exposed-modules:
         AST, Types,
         CodeGen, CodeGen.Python, CodeGen.Expr, CodeGen.Util,
+        CodeGen.FunDef,
         Analysis, Analysis.Context, Analysis.Error,
-        Analysis.Expr, Analysis.FunDef, 
+        Analysis.Expr, Analysis.Distribution, Analysis.FunDef, Analysis.DistDef,
         Parser, Parser.Types, Parser.Expr, Parser.Distribution,
         Parser.Util, Parser.Signature, Parser.Bijectors,
         Parser.DistDef, Parser.FunDef
@@ -70,10 +71,13 @@ executable stu
     -- Modules included in this executable, other than Main.
     other-modules:
         AST, Types,
-        CodeGen, CodeGen.Python,
-        Analysis, Analysis.Context, Analysis.Error, 
-        Parser, Parser.Types, Parser.Expr, 
-        Parser.Util, Parser.Signature, Parser.Bijectors
+        CodeGen, CodeGen.Python, CodeGen.Expr, CodeGen.Util,
+        CodeGen.FunDef,
+        Analysis, Analysis.Context, Analysis.Error,
+        Analysis.Expr, Analysis.Distribution, Analysis.FunDef, Analysis.DistDef,
+        Parser, Parser.Types, Parser.Expr, Parser.Distribution,
+        Parser.Util, Parser.Signature, Parser.Bijectors,
+        Parser.DistDef, Parser.FunDef
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
