@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 module Parser.DistDef where
 
@@ -28,26 +29,26 @@ pArg = do
 pDistDef :: Parser (DistDef SourcePos)
 pDistDef = do 
     symbol "dist"
-    name <- lexeme pIdent
+    name <- lexeme pIdentUpper
     args <- parens $ sepBy pArg (symbol ",") 
     symbol ":" 
     eventTy <- pTy
     symbol "begin"    
-    lpdf <- pLPDF eventTy 
+    lpdf <- pLPDF args eventTy 
     sampler <- pSample
     bij <- pBij
     symbol "end"
 
     return $ DistDef name args eventTy lpdf sampler bij
     
-pLPDF :: Ty -> Parser (FunDef SourcePos)
-pLPDF ty = do 
+pLPDF :: [(Text, Ty)] -> Ty -> Parser (FunDef SourcePos)
+pLPDF args ty = do 
     symbol "lpdf" 
     name <- parens pIdent 
     symbol "begin"
     body <- pFunBody
     symbol "end"
-    return $ FunDef name [(name, ty)] (Ty [] REAL) body 
+    return $ FunDef name ((name, ty) : args) (Ty [] REAL) body 
 
 pSample :: Parser (SampleBody SourcePos)
 pSample = do 
@@ -57,7 +58,7 @@ pSample = do
     return body 
 
 pSampleBody :: Parser (SampleBody SourcePos)
-pSampleBody = choice ([pLetIn, pSampleIn, pRet] :: [Parser (SampleBody SourcePos)])
+pSampleBody = choice ([pLetIn, pSampleIn, pRet, pSampleUnif] :: [_])
 
 pLetIn :: Parser (SampleBody SourcePos)
 pLetIn = do 
@@ -83,12 +84,15 @@ pSampleIn = do
     rest <- pSampleBody
     return $ SampleIn name ty dist rest 
 
-{- 
-data SampleBody ann 
-  = SamplePrim  Text Ty PrimSample (FunBody ann)
-  | SampleLetIn Text Ty (Expr ann) (FunBody ann) 
-  | SampleRet    (Expr ann)
--}
+pSampleUnif :: Parser (SampleBody SourcePos)
+pSampleUnif = do 
+    symbol "unif"
+    name <- lexeme pIdent 
+    lexeme $ symbol ":" 
+    ty <- pTy
+    lexeme $ symbol ";"
+    rest <- pSampleBody
+    return $ SampleUnifIn name ty rest 
 
 pRet :: Parser (SampleBody SourcePos)
 pRet = do 

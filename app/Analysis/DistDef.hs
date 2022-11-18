@@ -13,7 +13,7 @@ import Text.Megaparsec.Pos (SourcePos (..), unPos)
 import Control.Comonad.Identity (Identity (runIdentity, Identity))
 import Data.Functor.Compose (Compose(getCompose, Compose))
 import Analysis.Error ( TypeError(..), blame, prettyError )
-import Analysis.Context ( MonadTyCtx, Ctx(vars), insertTy, insertFun )
+import Analysis.Context ( MonadTyCtx, Ctx(vars), insertTy, insertFun, insertDist )
 import Analysis.Expr ( inferTy )
 import Analysis.FunDef ( checkFunDef, deleteBoundVars  ) 
 import AST
@@ -22,6 +22,7 @@ import AST
       DistDef(..),
       VarDomain(Bound, Local), SampleBody (..), Distribution (Distribution) ) 
 import Analysis.Distribution
+import Types (FunctionTy)
 
 
 cofreeHead :: Functor f => Cofree f a -> a
@@ -36,6 +37,7 @@ checkDistDef (DistDef name args eventTy lpdf sample bij) = do
     let err = ExpectedGot eventTy eventTy'
     when (eventTy' /= eventTy) $ throwError err 
     let bij' = (const eventTy) <$> bij
+    insertDist name (FunctionTy args eventTy) (const () <$> bij)
     return $ DistDef name args eventTy lpdf' sample' bij'
 
 checkSample :: (MonadTyCtx m) => SampleBody SourcePos -> m (Ty, SampleBody Ty) 
@@ -51,6 +53,10 @@ checkSample (SampleIn name ty dist rest) = do
     insertTy name Local ty
     (eventTy, rest') <- checkSample rest
     return (eventTy, SampleIn name ty dist' rest') 
+checkSample (SampleUnifIn name ty rest) = do 
+    insertTy name Local ty 
+    (eventTy, rest') <- checkSample rest
+    return (eventTy, SampleUnifIn name ty rest') 
 checkSample (SampleLetIn name ty val rest) = do 
     val' <- inferTy val
     let ty' = cofreeHead val'

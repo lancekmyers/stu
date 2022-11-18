@@ -121,6 +121,7 @@ data FunBody ann
 
 data SampleBody ann 
   = SampleIn    Text Ty (Distribution ann) (SampleBody ann)
+  | SampleUnifIn Text Ty (SampleBody ann)
   | SampleLetIn Text Ty (Expr ann) (SampleBody ann) 
   | SampleRet    (Expr ann)
 
