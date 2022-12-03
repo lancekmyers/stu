@@ -1,36 +1,37 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE ScopedTypeVariables, TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
-module Analysis.Context where 
+module Analysis.Context where
 
-import Control.Monad.Except ( MonadError(throwError) ) 
-import Control.Monad.State.Strict ( MonadState(put, get), gets )
-import Data.Maybe (mapMaybe)
+import AST (Bijector, Decl (..), ExprF (VarF), VarDomain (..))
+import Analysis.Error (TypeError (..))
+import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.State.Strict (MonadState (get, put), gets)
+import Data.Either (lefts, rights)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
-import AST ( Decl(..), VarDomain(..), Bijector, ExprF (VarF) ) 
-import Types ( FunctionTy, Ty ) 
-import Analysis.Error ( TypeError(..) )
-import Data.Either (lefts, rights)
+import Types (FunctionTy, Ty)
 
 data Ctx = Ctx
   { vars :: Map Text (Ty, VarDomain),
     funs :: Map Text FunctionTy,
     dists :: Map Text (FunctionTy, Bijector ()),
     knownCards :: Set Text
-  } 
+  }
 
-instance Semigroup Ctx where 
-  (Ctx vars funs dists knownCards) <> 
-    (Ctx vars' funs' dists' knownCards') = 
+instance Semigroup Ctx where
+  (Ctx vars funs dists knownCards)
+    <> (Ctx vars' funs' dists' knownCards') =
       Ctx (vars <> vars') (funs <> funs') (dists <> dists') (knownCards <> knownCards')
 
-instance Monoid Ctx where 
+instance Monoid Ctx where
   mempty = Ctx mempty mempty mempty mempty
 
 type MonadTyCtx m = (MonadState Ctx m, MonadError TypeError m)
@@ -79,7 +80,7 @@ insertTy ::
   forall m.
   (MonadTyCtx m) =>
   Text ->
-  VarDomain -> 
+  VarDomain ->
   Ty ->
   m ()
 insertTy name vd ty = do
@@ -91,7 +92,7 @@ insertFun ::
   forall m.
   (MonadTyCtx m) =>
   Text ->
-  FunctionTy -> 
+  FunctionTy ->
   m ()
 insertFun name fty = do
   Ctx vars funs dists cards <- get
@@ -102,14 +103,13 @@ insertDist ::
   forall m.
   (MonadTyCtx m) =>
   Text ->
-  FunctionTy -> 
-  Bijector () -> 
+  FunctionTy ->
+  Bijector () ->
   m ()
 insertDist name fty bij = do
   Ctx vars funs dists cards <- get
   let dists' = M.insert name (fty, bij) dists
   put $ Ctx vars funs dists' cards
-
 
 buildCtx :: [Decl] -> Ctx
 buildCtx decls = Ctx vars mempty mempty knownCards
@@ -127,15 +127,15 @@ buildCtx decls = Ctx vars mempty mempty knownCards
         go _ = Nothing
 
 annotateVarDomain :: (MonadTyCtx m) => ExprF a -> m (ExprF a)
-annotateVarDomain (VarF name _) = do 
+annotateVarDomain (VarF name _) = do
   vars <- gets vars
-  case M.lookup name vars of 
+  case M.lookup name vars of
     Nothing -> throwError $ UnBoundVarIdent name []
-    Just (t, vd)  -> return $ VarF name vd
+    Just (t, vd) -> return $ VarF name vd
 annotateVarDomain x = return x
 
-ctxFromSigs :: [Either (Text, FunctionTy) (Text, FunctionTy, Bijector ())] -> Ctx 
+ctxFromSigs :: [Either (Text, FunctionTy) (Text, FunctionTy, Bijector ())] -> Ctx
 ctxFromSigs xs = Ctx mempty funs dists mempty
   where
-    funs = M.fromList $ lefts xs 
+    funs = M.fromList $ lefts xs
     dists = M.fromList [(name, (dty, bij)) | (name, dty, bij) <- rights xs]

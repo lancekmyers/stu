@@ -1,33 +1,42 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE ScopedTypeVariables, TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Analysis (prettyError, checkModel, buildCtx, Ctx, ctxFromSigs, checkFunDef, checkLib) where
 
-import AST 
-    ( Distribution(..),
-      Library(Library),
-      Model(..),
-      ModelStmt(..),
-      VarDomain(Data, Val, Param) )
-import Control.Monad.Except (MonadError(..))
-import Control.Monad (when, forM)
-import Data.Functor.Foldable ( Recursive(project) )
-import Data.Text (Text)
-import Types ( broadcastsTo, shDiff, Ty(shape) )
-import Control.Comonad.Trans.Cofree ( Cofree, headF ) 
-import Text.Megaparsec.Pos ( SourcePos )
-import Control.Comonad.Identity (Identity (..))
-import Data.Functor.Compose (Compose(..))
+import AST
+  ( Distribution (..),
+    Library (Library),
+    Model (..),
+    ModelStmt (..),
+    VarDomain (Data, Param, Val),
+  )
 -- import Data.Maybe (fromMaybe, mapMaybe)
-import Analysis.Error ( TypeError(..), prettyError )
+
 import Analysis.Context
-    ( MonadTyCtx, Ctx, lookupVar, insertTy, buildCtx, ctxFromSigs )
-import Analysis.Expr ( inferTy )
-import Analysis.FunDef (checkFunDef) 
-import Analysis.Distribution (inferTyDist) 
+  ( Ctx,
+    MonadTyCtx,
+    buildCtx,
+    ctxFromSigs,
+    insertTy,
+    lookupVar,
+  )
 import Analysis.DistDef (checkDistDef)
+import Analysis.Distribution (inferTyDist)
+import Analysis.Error (TypeError (..), prettyError)
+import Analysis.Expr (inferTy)
+import Analysis.FunDef (checkFunDef)
+import Control.Comonad.Identity (Identity (..))
+import Control.Comonad.Trans.Cofree (Cofree, headF)
+import Control.Monad (forM, when)
+import Control.Monad.Except (MonadError (..))
+import Data.Functor.Compose (Compose (..))
+import Data.Functor.Foldable (Recursive (project))
+import Data.Text (Text)
+import Text.Megaparsec.Pos (SourcePos)
+import Types (Ty (shape), broadcastsTo, shDiff)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
@@ -49,7 +58,7 @@ checkModelStmt (ValStmt name ty val) = stmtHandler name $ do
   let ty' = cofreeHead val'
   let err = ExpectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
-  insertTy name Val ty 
+  insertTy name Val ty
   return (ValStmt name ty val')
 checkModelStmt (ParamStmt name ty dist bij) = stmtHandler name $ do
   Distribution dname args ty' (bd, _) <- inferTyDist dist
@@ -58,7 +67,7 @@ checkModelStmt (ParamStmt name ty dist bij) = stmtHandler name $ do
   insertTy name Param ty
   let br_sh = shDiff (shape ty') (shape ty)
   let bij' = fmap (const ty') <$> bij
-  -- ensure bij' is a known bijector of the right type  
+  -- ensure bij' is a known bijector of the right type
   let dist' = Distribution dname args ty (bd, br_sh)
   return (ParamStmt name ty dist' bij')
 checkModelStmt (ObsStmt name dist) = stmtHandler name $ do
@@ -67,7 +76,7 @@ checkModelStmt (ObsStmt name dist) = stmtHandler name $ do
   let err = ExpectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
   insertTy name Data ty
-  let br_sh =  shDiff (shape ty')  (shape ty) 
+  let br_sh = shDiff (shape ty') (shape ty)
   let dist' = Distribution dname args ty (bd, br_sh)
   return (ObsStmt name dist')
 
@@ -78,14 +87,15 @@ checkModel ::
   m (Model Ty)
 checkModel (Model stmts) = Model <$> forM stmts checkModelStmt
 
-
 allSame :: Eq a => [a] -> Bool
 allSame xs = and $ zipWith (==) xs (tail xs)
 
-checkLib :: forall m. (MonadTyCtx m, MonadError TypeError m) =>
+checkLib ::
+  forall m.
+  (MonadTyCtx m, MonadError TypeError m) =>
   Library SourcePos ->
   m (Library Ty)
-checkLib (Library funs dists) = do 
+checkLib (Library funs dists) = do
   funs' <- traverse checkFunDef funs
   dists' <- traverse checkDistDef dists
   return $ Library funs' dists'

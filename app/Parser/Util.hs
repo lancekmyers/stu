@@ -1,4 +1,4 @@
-module Parser.Util where 
+module Parser.Util where
 
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -7,9 +7,7 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
-
 type Parser = Parsec Void Text
-
 
 sc :: Parser ()
 sc =

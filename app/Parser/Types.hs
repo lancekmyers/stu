@@ -1,19 +1,30 @@
 module Parser.Types (pTy) where
 
 import qualified Data.Vector as V
-import Text.Megaparsec ( between, choice, sepBy )
-import Text.Megaparsec.Char ( char' )
-import Types
-    ( Card(..), ElTy(..), Shape(MkShape), Ty(Ty) )
 import Parser.Util
-    ( integer, lexeme, pIdent, pIdentUpper, symbol, Parser )
+  ( Parser,
+    integer,
+    lexeme,
+    pIdent,
+    pIdentUpper,
+    symbol,
+  )
+import Text.Megaparsec (between, choice, sepBy)
+import Text.Megaparsec.Char (char')
+import Types
+  ( Card (..),
+    ElTy (..),
+    Shape (MkShape),
+    Ty (Ty),
+  )
 
 pCard :: Parser Card
-pCard = choice [
-  CardN . fromInteger <$> integer,
-  CardFV <$> lexeme pIdentUpper,
-  CardBV <$> (char' '\'' *> pIdent)
-  ]
+pCard =
+  choice
+    [ CardN . fromInteger <$> integer,
+      CardFV <$> lexeme pIdentUpper,
+      CardBV <$> (char' '\'' *> pIdent)
+    ]
 
 pREAL :: Parser ElTy
 pREAL = symbol "real" >> pure REAL
@@ -27,8 +38,8 @@ pIND = IND <$> pCard
 pElTy :: Parser ElTy
 pElTy = choice [pREAL, pINT, pIND]
 
-pShape :: Parser Shape 
-pShape = do 
+pShape :: Parser Shape
+pShape = do
   cards <-
     between (symbol "[") (symbol "]") $
       pCard `sepBy` symbol ","

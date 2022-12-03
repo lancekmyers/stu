@@ -1,26 +1,31 @@
 module Parser (parseProgram, parseSignatures, parseLibrary) where
 
 import AST
-    ( Decl(..),
-      DistDef,
-      FunDef,
-      Library(Library),
-      Model(..),
-      ModelStmt(..),
-      Program(Program) )
-
+  ( Decl (..),
+    DistDef,
+    FunDef,
+    Library (Library),
+    Model (..),
+    ModelStmt (..),
+    Program (Program),
+  )
 import Data.Text (Text)
-import Text.Megaparsec
-    ( (<|>), optional, choice, many, MonadParsec(eof), SourcePos )
-import Parser.Expr ( pExpr ) 
-import Parser.Util ( lexeme, pIdent, pIdentUpper, symbol, Parser )
-import Parser.Types ( pTy )
-import Parser.Signature ( parseSignatures )
 import Parser.Bijectors (pBij)
-import Parser.Distribution (pDistribution)
-import Parser.FunDef (pFunDef)
 import Parser.DistDef (pDistDef)
-
+import Parser.Distribution (pDistribution)
+import Parser.Expr (pExpr)
+import Parser.FunDef (pFunDef)
+import Parser.Signature (parseSignatures)
+import Parser.Types (pTy)
+import Parser.Util (Parser, lexeme, pIdent, pIdentUpper, symbol)
+import Text.Megaparsec
+  ( MonadParsec (eof),
+    SourcePos,
+    choice,
+    many,
+    optional,
+    (<|>),
+  )
 
 semi :: Parser Text
 semi = symbol ";"
@@ -98,19 +103,18 @@ pModel = Model <$> many pModelStmt
 
 parseProgram :: Parser (Program SourcePos)
 parseProgram = do
-  decls <- many pDecl 
-  model <- pModel 
-  eof 
+  decls <- many pDecl
+  model <- pModel
+  eof
   return $ Program decls model
 
-
 parseLibrary :: Parser (Library SourcePos)
-parseLibrary = do 
+parseLibrary = do
   defs <- many $ (Left <$> pFunDef) <|> (Right <$> pDistDef)
   eof
   return $ foldr go (Library [] []) defs
-  where 
+  where
     go :: Either (FunDef a) (DistDef a) -> Library a -> Library a
-    go def (Library funs dists) = case def of   
+    go def (Library funs dists) = case def of
       Left fdef -> Library (fdef : funs) dists
-      Right ddef -> Library funs (ddef : dists)   
+      Right ddef -> Library funs (ddef : dists)

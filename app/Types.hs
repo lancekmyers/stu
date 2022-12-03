@@ -1,28 +1,27 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE TypeFamilies#-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Types where
 
 import Control.Monad.Except
 import Control.Monad.State
 import Data.List (intercalate, maximumBy)
+import qualified Data.Map.Strict as M
 import Data.Ord (comparing)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Prettyprinter
 import GHC.Exts (IsList (..))
-import qualified Data.Map.Strict as M
-
+import Prettyprinter
 
 data ElTy
   = REAL
   | INT
-  | BOOL 
+  | BOOL
   | IND Card
   deriving (Eq)
 
@@ -38,7 +37,7 @@ newtype Shape = MkShape {getVec :: Vector Card}
 
 instance IsList Shape where
   type Item Shape = Card
-  fromList = MkShape . V.fromList 
+  fromList = MkShape . V.fromList
   toList = V.toList . getVec
 
 prettyShape :: Shape -> Doc ann
@@ -47,11 +46,11 @@ prettyShape sh = tupled . fmap viaShow $ V.toList (getVec sh)
 data Ty = Ty {shape :: Shape, elTy :: ElTy}
   deriving (Eq)
 
-rank :: Ty -> Int 
+rank :: Ty -> Int
 rank (Ty sh _) = length (getVec sh)
 
-shRank :: Shape -> Int 
-shRank = V.length . getVec 
+shRank :: Shape -> Int
+shRank = V.length . getVec
 
 shTake :: Int -> Shape -> Shape
 shTake n (MkShape v) = MkShape (V.take n v)
@@ -59,19 +58,19 @@ shTake n (MkShape v) = MkShape (V.take n v)
 shDrop :: Int -> Shape -> Shape
 shDrop n (MkShape v) = MkShape (V.drop n v)
 
-shCons :: Card -> Shape -> Shape 
+shCons :: Card -> Shape -> Shape
 shCons c (MkShape v) = MkShape (V.cons c v)
 
 shUncons :: Shape -> Maybe (Card, Shape)
-shUncons (MkShape v) = case V.uncons v of 
-  Nothing -> Nothing 
+shUncons (MkShape v) = case V.uncons v of
+  Nothing -> Nothing
   Just (c, sh) -> Just (c, MkShape sh)
 
 shFromList :: [Card] -> Shape
 shFromList = MkShape . V.fromList
+
 shToList :: Shape -> [Card]
 shToList = V.toList . getVec
-
 
 instance Pretty Ty where pretty = viaShow
 
@@ -79,33 +78,32 @@ instance Show Ty where
   show (Ty sh el) = show sh <> show el
 
 data Card
-  = CardN  Int
+  = CardN Int
   | CardFV Text
-  | CardBV Text  -- polymorphic var
+  | CardBV Text -- polymorphic var
   -- maybe eventually existentially bound variables?
   deriving (Eq)
 
 instance Pretty Card where pretty = viaShow
 
 instance Show Card where
-  show (CardN  n) = "#" <> show n
+  show (CardN n) = "#" <> show n
   show (CardFV v) = "#" <> T.unpack v
   show (CardBV i) = '\'' : (T.unpack i)
-    
 
 cardMatches (CardN 1) x = True
 cardMatches x (CardN 1) = True
 cardMatches x y = x == y
 
 broadcast :: Shape -> Shape -> Maybe Shape
-broadcast (MkShape xs) (MkShape ys) = MkShape . mappend prefix <$> zs 
-  where 
-    go (CardN 1) y = Just y 
+broadcast (MkShape xs) (MkShape ys) = MkShape . mappend prefix <$> zs
+  where
+    go (CardN 1) y = Just y
     go x (CardN 1) = Just x
     go x y = if x == y then Just x else Nothing
-    prefix 
-      | (V.length xs > V.length ys) = V.take (V.length xs - V.length ys) xs 
-      | otherwise = V.take (V.length ys - V.length xs) ys 
+    prefix
+      | (V.length xs > V.length ys) = V.take (V.length xs - V.length ys) xs
+      | otherwise = V.take (V.length ys - V.length xs) ys
     zs = sequence . V.reverse $ V.zipWith go (V.reverse xs) (V.reverse ys)
 
 -- | Does sh broadcast to sh'?
@@ -113,19 +111,19 @@ broadcastsTo :: Ty -> Ty -> Bool
 broadcastsTo (Ty sh el) (Ty sh' el') = (el == el') && (shapeBroadcastsTo sh sh')
 
 shapeBroadcastsTo :: Shape -> Shape -> Bool
-shapeBroadcastsTo (MkShape sh) (MkShape sh') 
-  | length sh > length sh' = False 
+shapeBroadcastsTo (MkShape sh) (MkShape sh')
+  | length sh > length sh' = False
   | otherwise = and $ V.zipWith go (V.reverse sh) (V.reverse sh')
   where
     n = length sh
     go (CardN 1) _ = True
     go x y = x == y
 
-shDiff :: Shape -> Shape -> Maybe Shape 
-shDiff (MkShape sh') (MkShape sh) = 
+shDiff :: Shape -> Shape -> Maybe Shape
+shDiff (MkShape sh') (MkShape sh) =
   if n > 0 then Just (MkShape prefix) else Nothing
-  where 
-    larger = if (V.length sh < V.length sh') then sh' else sh 
+  where
+    larger = if (V.length sh < V.length sh') then sh' else sh
     n = abs $ V.length sh - V.length sh'
     prefix = V.take n larger
 
@@ -157,7 +155,7 @@ cardUnify ::
 cardUnify (c, (CardBV i)) = do
   cmap <- get
   case M.lookup i cmap of
-    Nothing -> put $ M.insert i c cmap 
+    Nothing -> put $ M.insert i c cmap
     Just c' -> if c == c' then pure () else throwError (TyErr "")
 cardUnify (c, c') = if c == c' then pure () else throwError (TyErr "ahhh")
 
@@ -173,17 +171,16 @@ shapeUnify (MkShape sh_given, MkShape sh_expected) = do
 
 go (x, y)
   | x == y = pure ()
-  | otherwise = throwError (TyErr "unequal") 
+  | otherwise = throwError (TyErr "unequal")
 
 substitute :: CardMap -> Ty -> Ty
 substitute cmap (Ty sh elty) = Ty (MkShape sh') elty
   where
     sh' = substGo <$> (getVec sh)
-    substGo (CardBV i) = cmap M.! i    
+    substGo (CardBV i) = cmap M.! i
     substGo c = c
 
-
--- | unifies function type with arguments, returns error or function return type and broadcasting shape 
+-- | unifies function type with arguments, returns error or function return type and broadcasting shape
 unify :: [Ty] -> FunctionTy -> Either TyErr (Maybe Shape, Ty)
 unify [] (FunctionTy [] ty) = Right (Nothing, ty)
 unify [] (FunctionTy xs ty) = Left $ TyErr ""
@@ -192,7 +189,7 @@ unify tys (FunctionTy args ret) = do
   let err x = Left (TyErr x)
 
   let tys' = map snd args
-  let shs  = shape <$> tys -- given shapes
+  let shs = shape <$> tys -- given shapes
   let shs' = shape <$> tys' -- expected shapes
   let ranks = shRank <$> shs
   let ranks' = shRank <$> shs'
@@ -221,11 +218,11 @@ unify tys (FunctionTy args ret) = do
     [] -> (_, Ty ret_sh ret_el)
   -}
   let Ty ret_sh ret_el = substitute cmap ret
-  let br_sh = if shRank longest_prefix > 0 
-              then Just longest_prefix 
-              else Nothing
+  let br_sh =
+        if shRank longest_prefix > 0
+          then Just longest_prefix
+          else Nothing
   return (br_sh, Ty (longest_prefix <> ret_sh) ret_el)
-  
 
 real = Ty mempty REAL
 

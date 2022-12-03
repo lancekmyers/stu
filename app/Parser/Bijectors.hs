@@ -1,23 +1,28 @@
-module Parser.Bijectors where 
+module Parser.Bijectors where
 
-import Control.Comonad.Trans.Cofree ( cofree, CofreeF((:<)) )
+import AST (Bijector, BijectorF (..))
+import Control.Comonad.Trans.Cofree (CofreeF ((:<)), cofree)
+import Parser.Util (Parser, lexeme, pIdentUpper, parens, symbol)
 import Text.Megaparsec
-    ( (<|>), getSourcePos, between, sepBy, SourcePos )
+  ( SourcePos,
+    between,
+    getSourcePos,
+    sepBy,
+    (<|>),
+  )
 import qualified Text.Megaparsec.Char.Lexer as L
-import Parser.Util ( lexeme, pIdentUpper, parens, symbol, Parser )
-import AST ( Bijector, BijectorF(..) )
 
--- parsing Bijectors 
+-- parsing Bijectors
 pBijNamed :: Parser (Bijector SourcePos)
-pBijNamed = do 
+pBijNamed = do
   loc <- getSourcePos
   bijName <- pIdentUpper
   bijArgs <- parens $ (lexeme L.float) `sepBy` symbol ","
   return . cofree $ loc :< (MkBij bijName bijArgs)
 
 pBijChain :: Parser (Bijector SourcePos)
-pBijChain = do 
-  loc <- getSourcePos 
+pBijChain = do
+  loc <- getSourcePos
   symbol "Chain"
   bijs <- between (symbol "[") (symbol "]") $ pBij `sepBy` symbol ","
   return . cofree $ loc :< (Chain bijs)

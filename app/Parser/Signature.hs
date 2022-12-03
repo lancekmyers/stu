@@ -1,21 +1,26 @@
-module Parser.Signature where 
+module Parser.Signature where
 
-import Text.Megaparsec ( (<|>), many, sepBy, MonadParsec(eof) )
-import Parser.Util
-    ( lexeme, pIdent, pIdentUpper, parens, symbol, Parser )
-import Parser.Types ( pTy )
-import Parser.Bijectors ( pBij )
-import Types ( Ty, FunctionTy(..) ) 
-import AST ( Bijector )
+import AST (Bijector)
 import Data.Text (Text)
-
+import Parser.Bijectors (pBij)
+import Parser.Types (pTy)
+import Parser.Util
+  ( Parser,
+    lexeme,
+    pIdent,
+    pIdentUpper,
+    parens,
+    symbol,
+  )
+import Text.Megaparsec (MonadParsec (eof), many, sepBy, (<|>))
+import Types (FunctionTy (..), Ty)
 
 pArg :: Parser (Text, Ty)
-pArg = do 
-    name <- lexeme pIdent 
-    symbol ":"
-    ty <- pTy 
-    return (name, ty)
+pArg = do
+  name <- lexeme pIdent
+  symbol ":"
+  ty <- pTy
+  return (name, ty)
 
 -- >>> runParser pFunSig "" "fun sin(x: []real): []real;"
 -- Right ("sin",[("x",[]real)],[]real)
@@ -25,8 +30,8 @@ pFunSig :: Parser (Text, FunctionTy)
 pFunSig = do
   symbol "fun"
   name <- lexeme pIdent
-  args <- parens $ sepBy pArg (symbol ",") 
-  symbol ":" 
+  args <- parens $ sepBy pArg (symbol ",")
+  symbol ":"
   ret <- pTy
   symbol ";"
   return $ (name, FunctionTy args ret)
@@ -40,8 +45,8 @@ pDistSig :: Parser (Text, FunctionTy, Bijector ())
 pDistSig = do
   symbol "dist"
   name <- lexeme pIdentUpper
-  args <- parens $ sepBy pArg (symbol ",") 
-  symbol ":" 
+  args <- parens $ sepBy pArg (symbol ",")
+  symbol ":"
   ret <- pTy
   symbol "via"
   bij <- pBij

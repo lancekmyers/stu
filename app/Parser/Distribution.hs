@@ -1,9 +1,9 @@
-module Parser.Distribution (pDistribution) where 
+module Parser.Distribution (pDistribution) where
 
-import Text.Megaparsec ( SourcePos, sepBy, getSourcePos )
-import Parser.Util ( pIdentUpper, parens, symbol, Parser ) 
-import AST ( Distribution(..) ) 
+import AST (Distribution (..))
 import Parser.Expr (pExpr)
+import Parser.Util (Parser, pIdentUpper, parens, symbol)
+import Text.Megaparsec (SourcePos, getSourcePos, sepBy)
 
 pDistribution :: Parser (Distribution SourcePos)
 pDistribution = do
@@ -11,4 +11,3 @@ pDistribution = do
   distName <- pIdentUpper
   distArgs <- parens $ pExpr `sepBy` symbol ","
   return $ Distribution distName distArgs loc (Nothing, Nothing)
-

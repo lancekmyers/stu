@@ -4,23 +4,22 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE TypeFamilies, StandaloneDeriving #-}
 
 module AST where
 
-import Control.Comonad.Trans.Cofree ( Cofree ) 
-
+import Control.Comonad.Trans.Cofree (Cofree)
 import Data.Text (Text)
-import GHC.Generics ( Generic )
-import Types (Ty, Shape)
+import GHC.Generics (Generic)
 import Text.Megaparsec.Pos (SourcePos)
+import Types (Shape, Ty)
 
 type Name = Text
 
 type FuncName = Text
-
 
 data BinOp
   = Add
@@ -34,9 +33,14 @@ instance Show BinOp where
   show Mul = "*"
   show Div = "/"
 
-data VarDomain 
-  = Unknown | Param | Data | Val 
-  | Bound | Local deriving (Eq, Ord, Show)
+data VarDomain
+  = Unknown
+  | Param
+  | Data
+  | Val
+  | Bound
+  | Local
+  deriving (Eq, Ord, Show)
 
 data ExprF a
   = ArithF BinOp a a
@@ -48,28 +52,26 @@ data ExprF a
   | LitArray [a]
   deriving (Generic, Functor, Foldable, Traversable)
 
+type Expr ann = Cofree ExprF ann
 
-type Expr ann = Cofree ExprF ann 
 type ExprSrc = Expr SourcePos
-
 
 type DistName = Text
 
-data Distribution ann 
-  = Distribution 
-      DistName 
-      [Expr ann] 
-      ann 
+data Distribution ann
+  = Distribution
+      DistName
+      [Expr ann]
+      ann
       (Maybe Int, Maybe Shape) --- nbatch_dims, sample_shape
   deriving ()
 
-data BijectorF a  
+data BijectorF a
   = MkBij Text [Double]
   | Chain [a]
   deriving (Generic, Functor, Foldable, Traversable)
 
 type Bijector ann = Cofree BijectorF ann
-
 
 data Decl
   = CardDecl Name
@@ -78,56 +80,59 @@ data Decl
   deriving (Show)
 
 -- include shape that is being broadcast over?
--- | Statements involved in the model 
-data ModelStmt ann 
-  = ValStmt   Name Ty (Expr ann) 
-  | ParamStmt Name Ty (Distribution ann) (Maybe (Bijector ann)) 
-  | ObsStmt   Name (Distribution ann)
 
+-- | Statements involved in the model
+data ModelStmt ann
+  = ValStmt Name Ty (Expr ann)
+  | ParamStmt Name Ty (Distribution ann) (Maybe (Bijector ann))
+  | ObsStmt Name (Distribution ann)
 
 data Model ann
   = Model [ModelStmt ann]
 
-data Program ann = Program 
-  { decls :: [Decl]
-  , model :: Model ann
-  }
---- 
-
-data BijDef a = BijDef (FunDef a) (FunDef a) (FunDef a) 
-  -- fwd inv ldj 
-
-data FunDef ann = FunDef 
-  { _funName :: Text
-  , _args :: [(Text, Ty)]
-  , _ret  :: Ty 
-  , _body :: (FunBody ann)
+data Program ann = Program
+  { decls :: [Decl],
+    model :: Model ann
   }
 
-data DistDef ann = DistDef 
-  { _distName :: Text 
-  , _params :: [(Text, Ty)] 
-  , _eventTy :: Ty
-  , _lpdf :: FunDef ann
-  , _sample :: SampleBody ann
-  , _bij :: Bijector ann
+---
+
+data BijDef a = BijDef (FunDef a) (FunDef a) (FunDef a)
+
+-- fwd inv ldj
+
+data FunDef ann = FunDef
+  { _funName :: Text,
+    _args :: [(Text, Ty)],
+    _ret :: Ty,
+    _body :: (FunBody ann)
   }
 
-data FunBody ann 
+data DistDef ann = DistDef
+  { _distName :: Text,
+    _params :: [(Text, Ty)],
+    _eventTy :: Ty,
+    _lpdf :: FunDef ann,
+    _sample :: SampleBody ann,
+    _bij :: Bijector ann
+  }
+
+data FunBody ann
   = LetPrimIn Text Ty (PrimApp ann) (FunBody ann)
-  | FunLetIn  Text Ty (Expr ann) (FunBody ann) 
-  | FunRet    (Expr ann)
+  | FunLetIn Text Ty (Expr ann) (FunBody ann)
+  | FunRet (Expr ann)
 
-data SampleBody ann 
-  = SampleIn    Text Ty (Distribution ann) (SampleBody ann)
+data SampleBody ann
+  = SampleIn Text Ty (Distribution ann) (SampleBody ann)
   | SampleUnifIn Text Ty (SampleBody ann)
-  | SampleLetIn Text Ty (Expr ann) (SampleBody ann) 
-  | SampleRet    (Expr ann)
+  | SampleLetIn Text Ty (Expr ann) (SampleBody ann)
+  | SampleRet (Expr ann)
 
-data Library a = Library {
-  _funs  :: [FunDef  a],
-  _dists :: [DistDef a] 
-}
+data Library a = Library
+  { _funs :: [FunDef a],
+    _dists :: [DistDef a]
+  }
 
-data PrimApp  a = PrimApp [Text] [Expr a]
-data PrimSample = PrimUniformRNG | PrimNormalRNG 
+data PrimApp a = PrimApp [Text] [Expr a]
+
+data PrimSample = PrimUniformRNG | PrimNormalRNG
