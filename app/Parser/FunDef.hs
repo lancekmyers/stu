@@ -1,13 +1,11 @@
 module Parser.FunDef (pFunDef, pFunBody) where 
 
-import Text.Megaparsec
-import Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
-import Parser.Util
+import Text.Megaparsec ( choice, sepBy, SourcePos )
+import Text.Megaparsec.Char ( char )
+import Parser.Util ( lexeme, pIdent, parens, symbol, Parser )
 import Parser.Types ( pTy )
-import Parser.Bijectors ( pBij )
-import Types ( Ty, FunctionTy(..) ) 
-import AST 
+import Types ( Ty ) 
+import AST ( FunBody(..), FunDef(FunDef), PrimApp(..) ) 
 import Data.Text (Text)
 import Parser.Expr (pExpr)
 

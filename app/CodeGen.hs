@@ -5,14 +5,20 @@
 module CodeGen  where
 
 import AST
+    ( Bijector,
+      BijectorF(..),
+      Distribution(..),
+      Library(_funs),
+      Model(..),
+      ModelStmt(..),
+      Program(Program) )
 import Data.Text (Text)
 import qualified Data.Vector as V
 import Text.Builder (Builder)
-import Types
-import Control.Comonad.Trans.Cofree (CofreeF(..), tailF)
-import Data.Functor.Foldable ( fold, Recursive(cata) )
-import Data.String (IsString (..))
-import Control.Monad.Reader ( runReader, MonadReader, asks ) 
+import Types ( Card(CardN, CardFV), Shape(getVec) )
+import Control.Comonad.Trans.Cofree ( tailF )
+import Data.Functor.Foldable ( fold )
+import Control.Monad.Reader ( runReader, asks ) 
 import Data.Maybe (mapMaybe, catMaybes)
 import Data.Functor.Identity (Identity(..))
 import Data.Functor.Compose (Compose(..))
@@ -28,11 +34,10 @@ import CodeGen.Python
       (!$),
       (!.),
       (!) ) 
-import Analysis (Ctx)
-import Analysis.Context (Ctx(dists), lookupDistDefaultBij)
+import Analysis.Context (Ctx(dists))
 import qualified Data.Text as T
 import CodeGen.Expr ( cgExpr )
-import CodeGen.Util
+import CodeGen.Util ( CodeGenMonad )
 import CodeGen.FunDef (cgFunDef)
 
 preamble :: PyCode

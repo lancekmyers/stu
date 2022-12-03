@@ -17,7 +17,6 @@ import AST ( Decl(..), VarDomain(..), Bijector, ExprF (VarF) )
 import Types ( FunctionTy, Ty ) 
 import Analysis.Error ( TypeError(..) )
 import Data.Either (lefts, rights)
-import GHC.Generics (Generic)
 
 data Ctx = Ctx
   { vars :: Map Text (Ty, VarDomain),

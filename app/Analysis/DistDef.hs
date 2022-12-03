@@ -2,27 +2,25 @@
 module Analysis.DistDef where 
 
 import Control.Monad.Except (MonadError(..))
-import Control.Monad.State.Strict (gets, withStateT, MonadState (get))
-import Control.Monad (when, forM)
+-- import Control.Monad.State.Strict (gets, withStateT, MonadState (get))
+import Control.Monad (when)
 import Data.Functor.Foldable ( Recursive(project) ) 
-import qualified Data.Map.Strict as M
--- import Data.Text (Text)
 import Types ( Ty, broadcastsTo, FunctionTy (FunctionTy) )
-import Control.Comonad.Trans.Cofree ( CofreeF((:<)), Cofree, CofreeT, headF, cofree )
-import Text.Megaparsec.Pos (SourcePos (..), unPos)
-import Control.Comonad.Identity (Identity (runIdentity, Identity))
-import Data.Functor.Compose (Compose(getCompose, Compose))
-import Analysis.Error ( TypeError(..), blame, prettyError )
-import Analysis.Context ( MonadTyCtx, Ctx(vars), insertTy, insertFun, insertDist )
+import Control.Comonad.Trans.Cofree ( Cofree, headF )
+import Text.Megaparsec.Pos ( SourcePos ) 
+import Control.Comonad.Identity ( Identity(runIdentity) ) 
+import Data.Functor.Compose ( Compose(getCompose) ) 
+import Analysis.Error ( TypeError(ExpectedGot) )
+import Analysis.Context ( MonadTyCtx, insertTy, insertDist )
 import Analysis.Expr ( inferTy )
 import Analysis.FunDef ( checkFunDef, deleteBoundVars  ) 
 import AST
-    ( PrimApp(PrimApp),
-      FunDef(..),
-      DistDef(..),
-      VarDomain(Bound, Local), SampleBody (..), Distribution (Distribution) ) 
-import Analysis.Distribution
-import Types (FunctionTy)
+    ( DistDef(DistDef),
+      Distribution(Distribution),
+      SampleBody(..),
+      VarDomain(Local) )
+
+import Analysis.Distribution ( inferTyDist )
 
 
 cofreeHead :: Functor f => Cofree f a -> a

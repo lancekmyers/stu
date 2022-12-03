@@ -10,10 +10,27 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Prettyprinter
+    ( Pretty(pretty),
+      Doc,
+      (<+>),
+      annotate,
+      hcat,
+      indent,
+      tupled,
+      viaShow,
+      vsep )
 import Types
+    ( shDiff,
+      shRank,
+      Card(CardN),
+      ElTy,
+      FunctionTy(..),
+      Shape(getVec),
+      Ty )
 import Text.Megaparsec.Pos (SourcePos (..), unPos)
 import Prettyprinter.Render.Terminal
-import Data.Maybe (fromMaybe, mapMaybe)
+    ( AnsiStyle, bold, color, Color(..) )
+import Data.Maybe (fromMaybe)
 
 
 -- should move to separate module

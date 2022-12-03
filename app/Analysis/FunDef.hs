@@ -2,25 +2,24 @@
 module Analysis.FunDef where 
 
 import Control.Monad.Except (MonadError(..))
-import Control.Monad.State.Strict (gets, withStateT, MonadState (get))
-import Control.Monad (when, forM)
+import Control.Monad.State.Strict ( MonadState(get) ) 
+import Control.Monad (when)
 import Data.Functor.Foldable ( Recursive(project) ) 
 import qualified Data.Map.Strict as M
--- import Data.Text (Text)
 import Types ( Ty, broadcastsTo, FunctionTy (FunctionTy) )
-import Control.Comonad.Trans.Cofree ( CofreeF((:<)), Cofree, CofreeT, headF, cofree )
-import Text.Megaparsec.Pos (SourcePos (..), unPos)
-import Control.Comonad.Identity (Identity (runIdentity, Identity))
-import Data.Functor.Compose (Compose(getCompose, Compose))
-import Analysis.Error ( TypeError(..), blame, prettyError )
+import Control.Comonad.Trans.Cofree ( Cofree, headF ) 
+import Text.Megaparsec.Pos ( SourcePos ) 
+import Control.Comonad.Identity (Identity (..))
+import Data.Functor.Compose (Compose(..))
+import Analysis.Error ( TypeError(ExpectedGot) ) 
 import Analysis.Context ( MonadTyCtx, Ctx(vars), insertTy, insertFun )
 import Analysis.Expr ( inferTy ) 
 import AST
-    ( PrimApp(PrimApp),
-      FunBody(..),
+    ( FunBody(..),
       FunDef(FunDef),
-      VarDomain(Bound, Local) ) 
-
+      PrimApp(PrimApp),
+      VarDomain(Local, Bound) ) 
+      
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 

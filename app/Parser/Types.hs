@@ -1,19 +1,12 @@
 module Parser.Types (pTy) where
 
-import AST
-import Control.Monad.Combinators.Expr
-import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
-import Data.Text (Text)
-import qualified Data.Text as T
 import qualified Data.Vector as V
-import Data.Void
-import Text.Megaparsec
-import Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec ( between, choice, sepBy )
+import Text.Megaparsec.Char ( char' )
 import Types
-
-import Parser.Expr 
+    ( Card(..), ElTy(..), Shape(MkShape), Ty(Ty) )
 import Parser.Util
+    ( integer, lexeme, pIdent, pIdentUpper, symbol, Parser )
 
 pCard :: Parser Card
 pCard = choice [

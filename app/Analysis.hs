@@ -5,31 +5,26 @@
 
 module Analysis (prettyError, checkModel, buildCtx, Ctx, ctxFromSigs, checkFunDef, checkLib) where
 
-import AST
+import AST 
     ( Distribution(..),
       Library(Library),
       Model(..),
       ModelStmt(..),
       VarDomain(Data, Val, Param) )
--- (MonadReader)
 import Control.Monad.Except (MonadError(..))
-import Control.Monad.State.Strict (gets)
 import Control.Monad (when, forM)
-import Data.Functor.Foldable
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
-import Data.Set (Set)
-import qualified Data.Set as S
+import Data.Functor.Foldable ( Recursive(project) )
 import Data.Text (Text)
-import Types
-import Control.Comonad.Trans.Cofree ( CofreeF((:<)), Cofree, CofreeT, headF, cofree )
-import Text.Megaparsec.Pos (SourcePos (..), unPos)
-import Control.Comonad.Identity (Identity (runIdentity, Identity))
-import Data.Functor.Compose (Compose(getCompose, Compose))
-import Data.Maybe (fromMaybe, mapMaybe)
-import Analysis.Error ( TypeError(..), blame, prettyError )
+import Types ( broadcastsTo, shDiff, Ty(shape) )
+import Control.Comonad.Trans.Cofree ( Cofree, headF ) 
+import Text.Megaparsec.Pos ( SourcePos )
+import Control.Comonad.Identity (Identity (..))
+import Data.Functor.Compose (Compose(..))
+-- import Data.Maybe (fromMaybe, mapMaybe)
+import Analysis.Error ( TypeError(..), prettyError )
 import Analysis.Context
-import Analysis.Expr
+    ( MonadTyCtx, Ctx, lookupVar, insertTy, buildCtx, ctxFromSigs )
+import Analysis.Expr ( inferTy )
 import Analysis.FunDef (checkFunDef) 
 import Analysis.Distribution (inferTyDist) 
 import Analysis.DistDef (checkDistDef)

@@ -5,19 +5,16 @@
 module CodeGen.Expr where
 
 import AST
-import Data.Text (Text)
-import qualified Data.Vector as V
-import Text.Builder (Builder)
-import Types
-import Control.Comonad.Trans.Cofree (CofreeF(..), tailF)
-import Data.Functor.Foldable ( fold, Recursive(cata) )
-import Data.String (IsString (..))
-import Control.Monad.Reader ( runReader, MonadReader, asks ) 
-import Data.Maybe (mapMaybe, catMaybes)
+    ( BinOp(Div, Add, Mul, Sub),
+      Expr,
+      ExprF(..),
+      VarDomain(Param, Unknown, Local, Bound, Val, Data) )
+import Control.Comonad.Trans.Cofree (tailF)
+import Data.Functor.Foldable ( Recursive(cata) )
 import Data.Functor.Identity (Identity(..))
 import Data.Functor.Compose (Compose(..))
-import qualified Data.Map as M
-import CodeGen.Python 
+import CodeGen.Python
+    ( (@@), jnp, PyExp(..) ) 
 import qualified Data.Text as T
 
 cgExpr :: Expr w -> PyExp

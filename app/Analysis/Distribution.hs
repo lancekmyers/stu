@@ -11,26 +11,16 @@ import AST
       Model(..),
       ModelStmt(..),
       VarDomain(Data, Val, Param) )
--- (MonadReader)
 import Control.Monad.Except (MonadError(..))
-import Control.Monad.State.Strict (gets)
-import Control.Monad (when, forM)
 import Data.Functor.Foldable ( Recursive(project) )
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
-import Data.Set (Set)
-import qualified Data.Set as S
-import Data.Text (Text)
 import Types ( shRank, unify, Ty )
-import Control.Comonad.Trans.Cofree ( CofreeF((:<)), Cofree, CofreeT, headF, cofree )
-import Text.Megaparsec.Pos (SourcePos (..), unPos)
-import Control.Comonad.Identity (Identity (runIdentity, Identity))
-import Data.Functor.Compose (Compose(getCompose, Compose))
-import Data.Maybe (fromMaybe, mapMaybe)
-import Analysis.Error ( TypeError(..), blame, prettyError )
+import Control.Comonad.Trans.Cofree ( Cofree, headF ) 
+import Text.Megaparsec.Pos (SourcePos)
+import Control.Comonad.Identity (Identity (runIdentity))
+import Data.Functor.Compose (Compose(getCompose))
+import Analysis.Error ( TypeError(..) )
 import Analysis.Context ( lookupDistTy, MonadTyCtx )
 import Analysis.Expr ( inferTy )
-import Analysis.FunDef (checkFunDef) 
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project

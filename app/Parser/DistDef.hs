@@ -3,18 +3,17 @@
 
 module Parser.DistDef where
 
-import Text.Megaparsec
-import Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec ( choice, sepBy, SourcePos )
 import Parser.Util
+    ( lexeme, pIdent, pIdentUpper, parens, symbol, Parser )
 import Parser.Types ( pTy )
 import Parser.Bijectors ( pBij )
-import Types ( Ty(..), FunctionTy(..), ElTy (..) ) 
-import AST ( PrimApp(..), FunBody(..), DistDef(..), FunDef(..), SampleBody (..) ) 
+import Types ( ElTy(REAL), Ty(Ty) ) 
+import AST ( DistDef(DistDef), FunDef(FunDef), SampleBody(..) ) 
 import Data.Text (Text)
 import Parser.Expr (pExpr)
-import Parser.FunDef 
-import Parser.Distribution
+import Parser.FunDef ( pFunBody ) 
+import Parser.Distribution ( pDistribution )
 
 
 -- >>> runParser pArg "" "x : []real"

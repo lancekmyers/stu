@@ -1,20 +1,9 @@
 module CodeGen.FunDef where
 
-import AST
-import Data.Text (Text)
-import qualified Data.Vector as V
-import Types
-import Control.Comonad.Trans.Cofree (CofreeF(..), tailF)
-import Data.Functor.Foldable ( fold, Recursive(cata) )
-import Data.String (IsString (..))
-import Control.Monad.Reader ( runReader, MonadReader, asks ) 
-import Data.Maybe (mapMaybe, catMaybes)
-import Data.Functor.Identity (Identity(..))
-import Data.Functor.Compose (Compose(..))
-import qualified Data.Map as M
-import CodeGen.Python 
-import CodeGen.Expr
-import qualified Data.Text as T
+import AST ( FunBody(..), FunDef(FunDef), PrimApp(..) )
+import CodeGen.Python
+    ( (@@), PyCode(..), PyExp(PyIdent) ) 
+import CodeGen.Expr ( cgExpr )
 
 cgFunDef :: FunDef a -> PyCode
 cgFunDef (FunDef name args ret body) = PyDef Nothing name' argNames body' 

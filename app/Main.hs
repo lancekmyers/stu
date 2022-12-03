@@ -4,29 +4,50 @@
 
 module Main where
 
-import AST
-import Analysis ( checkModel, prettyError, buildCtx, Ctx, ctxFromSigs, checkLib)
-import CodeGen (writeProg, cgModel, writeLib)
-import Control.Concurrent (threadDelay)
-import Control.Monad (forever, guard)
+import AST ( Library, Program(Program) )
+import Analysis
+    ( prettyError, Ctx, buildCtx, ctxFromSigs, checkModel, checkLib ) 
+import CodeGen (writeProg, writeLib)
 import Control.Monad.Except
+    ( MonadError(throwError),
+      when,
+      MonadIO(liftIO),
+      MonadTrans(lift),
+      ExceptT,
+      runExceptT,
+      withExceptT )
 import Control.Monad.State
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
+    ( StateT(runStateT), when, MonadIO(liftIO), MonadTrans(lift) )
 import Data.Maybe (mapMaybe, fromMaybe)
-import Data.Set (Set)
-import qualified Data.Set as S
 import Data.Text (Text)
 import qualified Data.Text.IO as TIO
 import Parser (parseProgram, parseSignatures, parseLibrary)
 import Prettyprinter
+    ( Pretty(pretty), Doc, (<+>), annotate, indent, line )
 import Prettyprinter.Render.Terminal (AnsiStyle, putDoc, bold, color, Color(..))
 import System.Directory ( doesFileExist )
-import System.FilePath
+import System.FilePath ( (-<.>), takeExtension )
 import qualified Text.Builder as B
 import Text.Megaparsec (errorBundlePretty, runParser, SourcePos)
-import Types
+import Types ( Ty )
+import Control.Applicative (optional, (<**>))
 import Options.Applicative
+    ( Parser,
+      argument,
+      command,
+      fullDesc,
+      header,
+      help,
+      info,
+      long,
+      metavar,
+      progDesc,
+      short,
+      str,
+      strOption,
+      subparser,
+      execParser,
+      helper )
 import Control.Monad.Reader (runReader)
 
 data Options

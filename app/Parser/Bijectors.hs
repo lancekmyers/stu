@@ -1,11 +1,11 @@
 module Parser.Bijectors where 
 
-import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
+import Control.Comonad.Trans.Cofree ( cofree, CofreeF((:<)) )
 import Text.Megaparsec
+    ( (<|>), getSourcePos, between, sepBy, SourcePos )
 import qualified Text.Megaparsec.Char.Lexer as L
-import Parser.Util
+import Parser.Util ( lexeme, pIdentUpper, parens, symbol, Parser )
 import AST ( Bijector, BijectorF(..) )
-import Data.Text (Text)
 
 -- parsing Bijectors 
 pBijNamed :: Parser (Bijector SourcePos)

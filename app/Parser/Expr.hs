@@ -1,12 +1,23 @@
 module Parser.Expr (pExpr) where 
 
 import Control.Monad.Combinators.Expr
-import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
+    ( makeExprParser, Operator(InfixL) )
+import Control.Comonad.Trans.Cofree ( cofree, CofreeF((:<)) ) 
 import Text.Megaparsec
-import Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
+    ( getSourcePos, between, choice, sepBy, MonadParsec(try) )
 import Parser.Util
+    ( lexeme,
+      pIdent,
+      parens,
+      signedFloat,
+      signedInteger,
+      symbol,
+      Parser )
 import AST
+    ( BinOp(..),
+      ExprF(..),
+      ExprSrc,
+      VarDomain(..) )
 
 pVariable :: Parser ExprSrc
 pVariable = do 

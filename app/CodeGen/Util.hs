@@ -4,9 +4,7 @@
 
 module CodeGen.Util where 
 
-import Control.Monad.Reader ( runReader, MonadReader, asks ) 
-import Analysis (Ctx)
-import Analysis.Context (Ctx(dists), lookupDistDefaultBij)
-import qualified Data.Text as T
+import Control.Monad.Reader ( MonadReader ) 
+import Analysis.Context ( Ctx )
 
 type CodeGenMonad m = (MonadReader Ctx m)

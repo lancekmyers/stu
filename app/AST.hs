@@ -10,11 +10,10 @@
 
 module AST where
 
-import Control.Comonad.Trans.Cofree (CofreeF(..), Cofree)
+import Control.Comonad.Trans.Cofree ( Cofree ) 
 
 import Data.Text (Text)
-import qualified Data.Text as T
-import GHC.Generics ( Generic, (:+:) )
+import GHC.Generics ( Generic )
 import Types (Ty, Shape)
 import Text.Megaparsec.Pos (SourcePos)
 

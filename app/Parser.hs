@@ -1,14 +1,21 @@
 module Parser (parseProgram, parseSignatures, parseLibrary) where
 
 import AST
-import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
+    ( Decl(..),
+      DistDef,
+      FunDef,
+      Library(Library),
+      Model(..),
+      ModelStmt(..),
+      Program(Program) )
+
 import Data.Text (Text)
 import Text.Megaparsec
-import qualified Text.Megaparsec.Char.Lexer as L
+    ( (<|>), optional, choice, many, MonadParsec(eof), SourcePos )
 import Parser.Expr ( pExpr ) 
-import Parser.Util
+import Parser.Util ( lexeme, pIdent, pIdentUpper, symbol, Parser )
 import Parser.Types ( pTy )
-import Parser.Signature (pArg, parseSignatures, pDistSig)
+import Parser.Signature ( parseSignatures )
 import Parser.Bijectors (pBij)
 import Parser.Distribution (pDistribution)
 import Parser.FunDef (pFunDef)

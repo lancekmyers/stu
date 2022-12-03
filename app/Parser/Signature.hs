@@ -1,9 +1,8 @@
 module Parser.Signature where 
 
-import Text.Megaparsec
-import Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec ( (<|>), many, sepBy, MonadParsec(eof) )
 import Parser.Util
+    ( lexeme, pIdent, pIdentUpper, parens, symbol, Parser )
 import Parser.Types ( pTy )
 import Parser.Bijectors ( pBij )
 import Types ( Ty, FunctionTy(..) ) 

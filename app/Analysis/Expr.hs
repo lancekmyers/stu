@@ -4,25 +4,26 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Analysis.Expr where 
 
-import AST
--- (MonadReader)
-import Control.Monad.Except (MonadError(..))
-import Control.Monad.State.Strict (gets)
-import Control.Monad (when, forM)
+import AST ( ExprF(..) )
+import Control.Monad.Except ( MonadError(..) )
+import Control.Monad (when)
 import Data.Functor.Foldable
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
-import Data.Set (Set)
-import qualified Data.Set as S
-import Data.Text (Text)
+    ( Corecursive(embed), Recursive(para, project) )
 import Types
-import Control.Comonad.Trans.Cofree ( CofreeF((:<)), Cofree, CofreeT, headF, cofree )
-import Text.Megaparsec.Pos (SourcePos (..), unPos)
+    ( broadcast,
+      shCons,
+      shUncons,
+      unify,
+      Card(CardN),
+      ElTy(..),
+      Ty(Ty) )
+import Control.Comonad.Trans.Cofree ( Cofree, CofreeF(..) ) 
+import Text.Megaparsec.Pos ( SourcePos )
 import Control.Comonad.Identity (Identity (runIdentity, Identity))
 import Data.Functor.Compose (Compose(getCompose, Compose))
-import Data.Maybe (fromMaybe, mapMaybe)
-import Analysis.Error ( TypeError(..), blame, prettyError )
+import Analysis.Error ( TypeError(..), blame )
 import Analysis.Context
+    ( MonadTyCtx, lookupVar, lookupFun, annotateVarDomain )
 
 inferTy :: forall m.
   ( MonadTyCtx m,

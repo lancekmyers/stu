@@ -5,7 +5,7 @@ import qualified Data.Text as T
 import Text.Builder (Builder)
 import qualified Text.Builder as Builder
 import Data.String (IsString (..))
-import Control.Monad.Reader (Reader, MonadReader (ask, local), runReader)
+import Control.Monad.Reader (Reader, MonadReader (ask, local))
 
 data PyCode 
   = PyBlock [PyCode] -- maybe use DList since these get appended a fair bit
