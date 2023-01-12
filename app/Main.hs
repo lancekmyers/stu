@@ -67,7 +67,7 @@ import System.FilePath (takeExtension, (-<.>))
 import qualified Text.Builder as B
 import Text.Megaparsec (SourcePos, errorBundlePretty, runParser)
 import Types (Ty)
-
+import Paths_stu
 data Options
   = BuildOptions
       { inFileName' :: FilePath,
@@ -169,7 +169,8 @@ main' (BuildOptions inFileName outFileName) = do
   liftIO . putDoc $ "Checking  " <> (annotate bold . pretty $ fname) <> line
 
   (src, prog) <- parseFile fname
-  std_lib <- parseSig "lib/std.stu"
+  std_lib_fname <- liftIO (getDataFileName "lib/std.stu")
+  std_lib <- parseSig std_lib_fname
   (progChecked, ctx) <- checkProgram src std_lib prog
 
   liftIO . putDoc $
@@ -186,7 +187,8 @@ main' (CheckOptions inFileName) = do
   liftIO . putDoc $ "Checking  " <> (annotate bold . pretty $ fname) <> line
 
   (src, prog) <- parseFile fname
-  std_lib <- parseSig "lib/std.stu"
+  std_lib_fname <- liftIO (getDataFileName "lib/std.stu")
+  std_lib <- parseSig std_lib_fname
   progChecked <- checkProgram src std_lib prog
 
   liftIO . putDoc $

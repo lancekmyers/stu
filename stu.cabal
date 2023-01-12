@@ -20,7 +20,7 @@ maintainer:         lancekmyers@gmail.com
 -- copyright:
 -- category:
 extra-source-files: CHANGELOG.md
-
+data-files: lib/std.stu
 library 
     default-extensions:      
         OverloadedStrings, LambdaCase
@@ -77,7 +77,8 @@ executable stu
         Analysis.Expr, Analysis.Distribution, Analysis.FunDef, Analysis.DistDef,
         Parser, Parser.Types, Parser.Expr, Parser.Distribution,
         Parser.Util, Parser.Signature, Parser.Bijectors,
-        Parser.DistDef, Parser.FunDef
+        Parser.DistDef, Parser.FunDef, 
+        Paths_stu
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
