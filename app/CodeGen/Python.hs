@@ -23,7 +23,7 @@ data PyExp
   | PyMethod PyExp Text [PyExp]
   | PyIdent [Text] Text -- python identifier
   | PyList [PyExp]
-  | PyDict [(Text, PyExp)]
+  | PyDict [(PyExp, PyExp)]
   | PyNum (Either Double Int)
   | PyGet PyExp PyExp
   | PyDot PyExp Text
@@ -42,7 +42,7 @@ prettyExp (PyDict xs) =
   "{"
     <> Builder.intercalate
       ","
-      ["'" <> Builder.text k <> "'" <> " : " <> prettyExp v | (k, v) <- xs]
+      [prettyExp k <> " : " <> prettyExp v | (k, v) <- xs]
     <> "}"
 prettyExp (PyNum (Right i)) = Builder.decimal i
 prettyExp (PyNum (Left f)) = Builder.string $ show f
