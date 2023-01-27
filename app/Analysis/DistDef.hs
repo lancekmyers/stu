@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 
+
 module Analysis.DistDef where
 
 -- import Control.Monad.State.Strict (gets, withStateT, MonadState (get))
@@ -79,7 +80,6 @@ checkSample (SampleLetIn name ty val rest) = local (insertTy name Local ty) $ do
   let ty' = cofreeHead val'
   let err = ExpectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
-  
   (eventTy, rest') <- checkSample rest
   return (eventTy, SampleLetIn name ty val' rest')
 

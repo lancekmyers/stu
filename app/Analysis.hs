@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE EmptyCase #-}
 
+
 module Analysis (prettyError, checkModel, buildCtx, Ctx, ctxFromSigs, checkFunDef, checkLib) where
 
 import AST
@@ -103,7 +104,6 @@ checkModel (Model stmts) = Model <$> traverse go stmts
       (ValStmt name ty val) -> modify (insertTy name Val ty) >> pure x
 
 
-
 allSame :: Eq a => [a] -> Bool
 allSame xs = and $ zipWith (==) xs (tail xs)
 
@@ -116,3 +116,4 @@ checkLib (Library funs dists) = do
   funs' <- checkFunDefs funs
   dists' <- checkDistDefs dists
   return $ Library funs' dists'
+

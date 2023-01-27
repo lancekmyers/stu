@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+
 module Analysis.FunDef where
 
 import AST
@@ -69,6 +70,7 @@ deleteBoundVars
 insertFun name (FunctionTy args ret)
 return $ FunDef name args ret' body'
 -}
+
 checkFunBody ::
   (MonadTyCtx m) =>
   FunBody SourcePos ->
@@ -82,6 +84,7 @@ checkFunBody (LetPrimIn name ty (PrimApp fprim args) rest) =
     return $ (rty, LetPrimIn name ty (PrimApp fprim args') rest')
 checkFunBody (FunLetIn name ty val rest) = local (insertTy name Local ty) $ do
   validateType ty
+
   val' <- inferTy val
   let ty' = cofreeHead val'
   let err = ExpectedGot ty ty'

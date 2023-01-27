@@ -22,6 +22,7 @@ import qualified Data.Vector as V
 import Control.Monad.State.Class (modify)
 import Control.Monad.Reader.Class (MonadReader (ask), asks)
 
+
 data Ctx = Ctx
   { vars :: Map Text (Ty, VarDomain),
     funs :: Map Text FunctionTy,
@@ -38,6 +39,7 @@ instance Monoid Ctx where
   mempty = Ctx mempty mempty mempty mempty
 
 type MonadTyCtx m = (MonadReader Ctx m, MonadError TypeError m)
+
 
 lookupVar ::
   (MonadTyCtx m) =>
