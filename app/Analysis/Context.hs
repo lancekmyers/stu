@@ -8,7 +8,7 @@ module Analysis.Context where
 
 import AST (Bijector, Decl (..), ExprF (VarF), VarDomain (..))
 import Analysis.Error (TypeError (..))
-import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.Except (MonadError (throwError), guard)
 import Control.Monad.State.Strict (MonadState (get, put), gets)
 import Data.Either (lefts, rights)
 import Data.Map.Strict (Map)
@@ -17,13 +17,14 @@ import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
-import Types (FunctionTy, Ty)
+import Types (FunctionTy, Ty (shape), Card (CardFV), Shape (getVec))
+import qualified Data.Vector as V 
 
 data Ctx = Ctx
   { vars :: Map Text (Ty, VarDomain),
     funs :: Map Text FunctionTy,
     dists :: Map Text (FunctionTy, Bijector ()),
-    knownCards :: Set Text
+    knownCards :: Set Card
   }
 
 instance Semigroup Ctx where
@@ -112,7 +113,7 @@ insertDist name fty bij = do
   put $ Ctx vars funs dists' cards
 
 buildCtx :: [Decl] -> Ctx
-buildCtx decls = Ctx vars mempty mempty knownCards
+buildCtx decls = Ctx vars mempty mempty (S.map CardFV knownCards)
   where
     vars :: Map Text (Ty, VarDomain)
     vars = M.fromList $ mapMaybe go decls
@@ -139,3 +140,12 @@ ctxFromSigs xs = Ctx mempty funs dists mempty
   where
     funs = M.fromList $ lefts xs
     dists = M.fromList [(name, (dty, bij)) | (name, dty, bij) <- rights xs]
+
+validateType :: MonadTyCtx m => Ty -> m ()
+validateType ty = do
+  ctxCards <- gets knownCards
+  let cards = getVec . shape $ ty 
+  let unknownCards = V.filter (not . (`S.member` ctxCards)) cards
+  case V.toList unknownCards of 
+    [] -> pure () 
+    c : _ -> throwError (UnBoundCardIdent c [])
