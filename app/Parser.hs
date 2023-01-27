@@ -27,6 +27,7 @@ import Text.Megaparsec
     (<|>),
   )
 
+
 semi :: Parser Text
 semi = symbol ";"
 
@@ -96,6 +97,7 @@ pModelStmt = choice [pValStmt, pParamStmt, pObsStmt]
 
 pModel :: Parser (Model SourcePos)
 pModel = Model <$> many pModelStmt
+
 
 -----
 

@@ -44,6 +44,7 @@ prettyExp (PyDict xs) =
       ","
       [prettyExp k <> " : " <> prettyExp v | (k, v) <- xs]
     <> "}"
+
 prettyExp (PyNum (Right i)) = Builder.decimal i
 prettyExp (PyNum (Left f)) = Builder.string $ show f
 prettyExp (PyGet x i) = prettyExp x <> "[" <> prettyExp i <> "]"

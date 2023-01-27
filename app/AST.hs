@@ -11,6 +11,7 @@
 
 module AST where
 
+
 import Control.Comonad.Trans.Cofree (Cofree)
 import Data.Text (Text)
 import GHC.Generics (Generic)

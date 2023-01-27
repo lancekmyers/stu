@@ -80,6 +80,7 @@ executable stu
         Parser.DistDef, Parser.FunDef, 
         Paths_stu
 
+
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:

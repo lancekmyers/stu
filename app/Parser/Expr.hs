@@ -43,6 +43,7 @@ pLitInt = do
 
 pLitReal :: Parser ExprSrc
 pLitReal = do
+
   pos <- getSourcePos
   lit <- LitReal <$> signedFloat
   return . cofree $ pos :< lit
@@ -62,6 +63,7 @@ pLit =
       try pLitReal,
       pLitInt
     ]
+
 
 pTerm :: Parser ExprSrc
 pTerm =
@@ -94,6 +96,7 @@ pSub = do
   loc <- getSourcePos
   star <- symbol "-"
   return $ \x y -> cofree $ loc :< ArithF Sub x y
+
 
 operatorTable :: [[Operator Parser ExprSrc]]
 operatorTable =

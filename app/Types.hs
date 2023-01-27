@@ -17,6 +17,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import GHC.Exts (IsList (..))
 import Prettyprinter
+import GHC.Exts (IsList (..))
 
 data ElTy
   = REAL
@@ -104,6 +105,7 @@ broadcast (MkShape xs) (MkShape ys) = MkShape . mappend prefix <$> zs
     prefix
       | (V.length xs > V.length ys) = V.take (V.length xs - V.length ys) xs
       | otherwise = V.take (V.length ys - V.length xs) ys
+
     zs = sequence . V.reverse $ V.zipWith go (V.reverse xs) (V.reverse ys)
 
 -- | Does sh broadcast to sh'?
@@ -189,7 +191,7 @@ unify tys (FunctionTy args ret) = do
   let err x = Left (TyErr x)
 
   let tys' = map snd args
-  let shs = shape <$> tys -- given shapes
+  let shs  = shape <$> tys -- given shapes
   let shs' = shape <$> tys' -- expected shapes
   let ranks = shRank <$> shs
   let ranks' = shRank <$> shs'
@@ -222,6 +224,7 @@ unify tys (FunctionTy args ret) = do
         if shRank longest_prefix > 0
           then Just longest_prefix
           else Nothing
+
   return (br_sh, Ty (longest_prefix <> ret_sh) ret_el)
 
 real = Ty mempty REAL

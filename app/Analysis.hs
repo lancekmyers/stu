@@ -35,11 +35,14 @@ import Control.Monad.Except (MonadError (..))
 import Data.Functor.Compose (Compose (..))
 import Data.Functor.Foldable (Recursive (project))
 import Data.Text (Text)
+
 import Text.Megaparsec.Pos (SourcePos)
 import Types (Ty (shape), broadcastsTo, shDiff)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
+
+
 
 stmtHandler ::
   (MonadError TypeError m) =>

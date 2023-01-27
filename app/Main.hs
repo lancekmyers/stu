@@ -15,6 +15,7 @@ import Analysis
   )
 import CodeGen (writeLib, writeProg)
 import Control.Applicative (optional, (<**>))
+
 import Control.Monad.Except
   ( ExceptT,
     MonadError (throwError),
@@ -103,6 +104,7 @@ options =
       LibOptions
         <$> (argument str (metavar "LIBRARY" <> help "File containing librar"))
 
+
 {-
    "         __       "
    "  _____/ /___  __ "
@@ -111,6 +113,7 @@ options =
    "/____/\\__/\\__,_/"
 -}
 type Err = Doc AnsiStyle
+
 
 parseFile :: FilePath -> ExceptT Err IO (Text, Program SourcePos)
 parseFile fname = do
@@ -218,3 +221,4 @@ main = mainHandled =<< execParser opts
             <> progDesc "Compile a stu model"
             <> header "stu"
         )
+

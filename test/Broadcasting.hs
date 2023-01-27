@@ -75,7 +75,6 @@ check_unify = describe "unification" $ do
       let 
         args = (\t -> ("", t)) <$> tys
       in (unify tys (FunctionTy args ty)) `shouldBe` (Right (Nothing, ty)) 
-
   it "broadcasts over common prefix" $ do 
     property $ \prefix tys ty ->  
       let 

@@ -3,6 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+
 module CodeGen where
 
 import AST
@@ -37,8 +38,8 @@ import Data.Functor.Foldable (fold)
 import Data.Functor.Identity (Identity (..))
 import qualified Data.Map as M
 import Data.Maybe (catMaybes, mapMaybe)
+
 import Data.Text (Text)
-import qualified Data.Text as T
 import qualified Data.Vector as V
 import Text.Builder (Builder)
 import Types (Card (CardFV, CardN), Shape (getVec))
@@ -53,6 +54,7 @@ preamble =
       PyImport "jax.numpy as jnp",
       PyImport "arviz as az"
     ]
+
 
 cgBijDict :: forall a m. CodeGenMonad m => Model a -> m PyCode
 cgBijDict (Model stmts) = do
@@ -199,6 +201,7 @@ writeProg :: forall a m. CodeGenMonad m => Program a -> m Builder
 writeProg prog = do
   prog' <- cgProg prog
   return $ runReader (prettyCode prog') 0
+
 
 writeLib :: forall a m. CodeGenMonad m => Library a -> m Builder
 writeLib lib = do
