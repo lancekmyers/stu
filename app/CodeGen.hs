@@ -40,6 +40,7 @@ import qualified Data.Map as M
 import Data.Maybe (catMaybes, mapMaybe)
 
 import Data.Text (Text)
+import qualified Data.Text as T
 import qualified Data.Vector as V
 import Text.Builder (Builder)
 import Types (Card (CardFV, CardN), Shape (getVec))
