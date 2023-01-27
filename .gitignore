@@ -2,3 +2,5 @@ dist-newstyle/
 examples/
 cabal.project.local*
 cabal.project.local
+lib/my_lib.py
+lib/my_lib.stu

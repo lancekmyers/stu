@@ -1,46 +1,69 @@
-module Parser.Expr (pExpr) where 
+module Parser.Expr (pExpr) where
 
-import Control.Monad.Combinators.Expr
-import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
-import Text.Megaparsec
-import Text.Megaparsec.Char
-import qualified Text.Megaparsec.Char.Lexer as L
-import Parser.Util
 import AST
+  ( BinOp (..),
+    ExprF (..),
+    ExprSrc,
+    VarDomain (..),
+  )
+import Control.Comonad.Trans.Cofree (CofreeF ((:<)), cofree)
+import Control.Monad.Combinators.Expr
+  ( Operator (InfixL),
+    makeExprParser,
+  )
+import Parser.Util
+  ( Parser,
+    lexeme,
+    pIdent,
+    parens,
+    signedFloat,
+    signedInteger,
+    symbol,
+  )
+import Text.Megaparsec
+  ( MonadParsec (try),
+    between,
+    choice,
+    getSourcePos,
+    sepBy,
+  )
 
 pVariable :: Parser ExprSrc
-pVariable = do 
-  position <- getSourcePos 
+pVariable = do
+  position <- getSourcePos
   ident <- lexeme pIdent
   return . cofree $ position :< VarF ident Unknown
 
-
 pLitInt :: Parser ExprSrc
-pLitInt = do 
-  pos <- getSourcePos 
+pLitInt = do
+  pos <- getSourcePos
   int <- signedInteger
   let litInt = LitInt . fromInteger $ int
-  return . cofree $ pos :< litInt 
+  return . cofree $ pos :< litInt
 
 pLitReal :: Parser ExprSrc
-pLitReal = do 
+pLitReal = do
+
   pos <- getSourcePos
   lit <- LitReal <$> signedFloat
   return . cofree $ pos :< lit
 
 pLitArray :: Parser ExprSrc
-pLitArray = do 
+pLitArray = do
   pos <- getSourcePos
-  litArr <- between (symbol "[") (symbol "]") $
-    LitArray <$> sepBy pExpr (symbol ",")
+  litArr <-
+    between (symbol "[") (symbol "]") $
+      LitArray <$> sepBy pExpr (symbol ",")
   return . cofree $ pos :< litArr
 
 pLit :: Parser (ExprSrc)
-pLit = choice 
-  [ pLitArray,
-    try pLitReal,
-    pLitInt
-  ]
+pLit =
+  choice
+    [ pLitArray,
+      try pLitReal,
+      pLitInt
+    ]
+
 
 pTerm :: Parser ExprSrc
 pTerm =
@@ -54,22 +77,25 @@ pTerm =
 pExpr :: Parser ExprSrc
 pExpr = makeExprParser pTerm operatorTable
 
-pAdd = do 
+pAdd = do
   loc <- getSourcePos
-  star <- symbol "+" 
-  return $ \x y -> cofree $ loc :< ArithF Add x y  
-pMul = do 
+  star <- symbol "+"
+  return $ \x y -> cofree $ loc :< ArithF Add x y
+
+pMul = do
   loc <- getSourcePos
-  star <- symbol "*" 
-  return $ \x y -> cofree $ loc :< ArithF Mul x y  
-pDiv = do 
+  star <- symbol "*"
+  return $ \x y -> cofree $ loc :< ArithF Mul x y
+
+pDiv = do
   loc <- getSourcePos
-  star <- symbol "/" 
-  return $ \x y -> cofree $ loc :< ArithF Div x y  
-pSub = do 
+  star <- symbol "/"
+  return $ \x y -> cofree $ loc :< ArithF Div x y
+
+pSub = do
   loc <- getSourcePos
-  star <- symbol "-" 
-  return $ \x y -> cofree $ loc :< ArithF Sub x y  
+  star <- symbol "-"
+  return $ \x y -> cofree $ loc :< ArithF Sub x y
 
 
 operatorTable :: [[Operator Parser ExprSrc]]

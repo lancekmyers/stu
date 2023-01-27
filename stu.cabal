@@ -20,15 +20,20 @@ maintainer:         lancekmyers@gmail.com
 -- copyright:
 -- category:
 extra-source-files: CHANGELOG.md
-
+data-files: lib/std.stu
 library 
     default-extensions:      
         OverloadedStrings, LambdaCase
 
     exposed-modules:
-        Parser, AST, CodeGen, Analysis, Types,
-        Parser.Types, Parser.Expr, Parser.Util,
-        CodeGen.Python 
+        AST, Types,
+        CodeGen, CodeGen.Python, CodeGen.Expr, CodeGen.Util,
+        CodeGen.FunDef,
+        Analysis, Analysis.Context, Analysis.Error,
+        Analysis.Expr, Analysis.Distribution, Analysis.FunDef, Analysis.DistDef,
+        Parser, Parser.Types, Parser.Expr, Parser.Distribution,
+        Parser.Util, Parser.Signature, Parser.Bijectors,
+        Parser.DistDef, Parser.FunDef
 
     -- other-extensions:
     build-depends:
@@ -50,7 +55,8 @@ library
         free == 5.*,
         repa == 3.4.*, 
         optparse-applicative == 0.17.*, 
-        comonad == 5.*
+        comonad == 5.*, 
+        data-fix == 0.3.*
 
     hs-source-dirs:   app
     default-language: Haskell2010
@@ -64,9 +70,16 @@ executable stu
 
     -- Modules included in this executable, other than Main.
     other-modules:
-        Parser, AST, CodeGen, Analysis, Types, 
-        Parser.Expr, Parser.Types, Parser.Util,
-        CodeGen.Python      
+        AST, Types,
+        CodeGen, CodeGen.Python, CodeGen.Expr, CodeGen.Util,
+        CodeGen.FunDef,
+        Analysis, Analysis.Context, Analysis.Error,
+        Analysis.Expr, Analysis.Distribution, Analysis.FunDef, Analysis.DistDef,
+        Parser, Parser.Types, Parser.Expr, Parser.Distribution,
+        Parser.Util, Parser.Signature, Parser.Bijectors,
+        Parser.DistDef, Parser.FunDef, 
+        Paths_stu
+
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

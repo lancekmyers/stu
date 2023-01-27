@@ -1,28 +1,32 @@
-module Parser where
-
--- (1)
+module Parser (parseProgram, parseSignatures, parseLibrary) where
 
 import AST
-import Control.Comonad.Trans.Cofree (Cofree(..), CofreeF(..), cofree)
+  ( Decl (..),
+    DistDef,
+    FunDef,
+    Library (Library),
+    Model (..),
+    ModelStmt (..),
+    Program (Program),
+  )
 import Data.Text (Text)
-
+import Parser.Bijectors (pBij)
+import Parser.DistDef (pDistDef)
+import Parser.Distribution (pDistribution)
+import Parser.Expr (pExpr)
+import Parser.FunDef (pFunDef)
+import Parser.Signature (parseSignatures)
+import Parser.Types (pTy)
+import Parser.Util (Parser, lexeme, pIdent, pIdentUpper, symbol)
 import Text.Megaparsec
-import qualified Text.Megaparsec.Char.Lexer as L
+  ( MonadParsec (eof),
+    SourcePos,
+    choice,
+    many,
+    optional,
+    (<|>),
+  )
 
-import Parser.Expr ( pExpr ) 
-import Parser.Util
-import Parser.Types ( pTy )
-
--- Parsing Expressions
-
-pDistribution :: Parser (Distribution SourcePos)
-pDistribution = do
-  loc <- getSourcePos
-  distName <- pIdentUpper
-  distArgs <- parens $ pExpr `sepBy` symbol ","
-  return $ Distribution distName distArgs loc (Nothing, Nothing)
-
-------
 
 semi :: Parser Text
 semi = symbol ";"
@@ -95,31 +99,24 @@ pModel :: Parser (Model SourcePos)
 pModel = Model <$> many pModelStmt
 
 
--- parsing Bijectors 
-pBijNamed :: Parser (Bijector SourcePos)
-pBijNamed = do 
-  loc <- getSourcePos
-  bijName <- pIdentUpper
-  bijArgs <- parens $ (lexeme L.float) `sepBy` symbol ","
-  return . cofree $ loc :< (MkBij bijName bijArgs)
-
-pBijChain :: Parser (Bijector  SourcePos)
-pBijChain = do 
-  loc <- getSourcePos 
-  symbol "Chain"
-  bijs <- between (symbol "[") (symbol "]") $ pBij `sepBy` symbol ","
-  return . cofree $ loc :< (Chain bijs)
-
-pBij :: Parser (Bijector SourcePos)
-pBij = pBijChain <|> pBijNamed
-
 -----
 
 -- parsing programs
 
 parseProgram :: Parser (Program SourcePos)
 parseProgram = do
-  decls <- many pDecl 
-  model <- pModel 
-  eof 
+  decls <- many pDecl
+  model <- pModel
+  eof
   return $ Program decls model
+
+parseLibrary :: Parser (Library SourcePos)
+parseLibrary = do
+  defs <- many $ (Left <$> pFunDef) <|> (Right <$> pDistDef)
+  eof
+  return $ foldr go (Library [] []) defs
+  where
+    go :: Either (FunDef a) (DistDef a) -> Library a -> Library a
+    go def (Library funs dists) = case def of
+      Left fdef -> Library (fdef : funs) dists
+      Right ddef -> Library funs (ddef : dists)
