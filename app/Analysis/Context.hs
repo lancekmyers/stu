@@ -8,7 +8,7 @@ module Analysis.Context where
 
 import AST (Bijector, Decl (..), ExprF (VarF), VarDomain (..))
 import Analysis.Error (TypeError (..))
-import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.Except (MonadError (throwError), guard)
 import Control.Monad.State.Strict (MonadState (get, put), gets)
 import Data.Either (lefts, rights)
 import Data.Map.Strict (Map)
@@ -17,13 +17,17 @@ import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
-import Types (FunctionTy, Ty)
+import Types (FunctionTy, Ty (shape), Card (CardFV, CardBV), Shape (getVec))
+import qualified Data.Vector as V 
+import Control.Monad.State.Class (modify)
+import Control.Monad.Reader.Class (MonadReader (ask), asks)
+
 
 data Ctx = Ctx
   { vars :: Map Text (Ty, VarDomain),
     funs :: Map Text FunctionTy,
     dists :: Map Text (FunctionTy, Bijector ()),
-    knownCards :: Set Text
+    knownCards :: Set Card
   }
 
 instance Semigroup Ctx where
@@ -34,14 +38,15 @@ instance Semigroup Ctx where
 instance Monoid Ctx where
   mempty = Ctx mempty mempty mempty mempty
 
-type MonadTyCtx m = (MonadState Ctx m, MonadError TypeError m)
+type MonadTyCtx m = (MonadReader Ctx m, MonadError TypeError m)
+
 
 lookupVar ::
   (MonadTyCtx m) =>
   Text ->
   m Ty
 lookupVar name = do
-  varCtx <- vars <$> get
+  varCtx <- asks vars
   case M.lookup name varCtx of
     Nothing -> throwError $ UnBoundVarIdent name []
     Just (ty, _vd) -> return ty
@@ -51,7 +56,7 @@ lookupFun ::
   Text ->
   m FunctionTy
 lookupFun name = do
-  funCtx <- funs <$> get
+  funCtx <- asks funs 
   case M.lookup name funCtx of
     Nothing -> throwError $ UnBoundFunctionIdent name []
     Just ty -> return ty
@@ -61,7 +66,7 @@ lookupDistTy ::
   Text ->
   m FunctionTy
 lookupDistTy name = do
-  distsCtx <- dists <$> get
+  distsCtx <- asks dists
   case M.lookup name distsCtx of
     Nothing -> throwError $ UnBoundDistIdent name []
     Just (ty, _) -> return ty
@@ -71,48 +76,45 @@ lookupDistDefaultBij ::
   Text ->
   m (Bijector ())
 lookupDistDefaultBij name = do
-  distsCtx <- dists <$> get
+  distsCtx <- asks dists
   case M.lookup name distsCtx of
     Nothing -> throwError $ UnBoundDistIdent name []
     Just (_, bij) -> return bij
 
 insertTy ::
-  forall m.
-  (MonadTyCtx m) =>
   Text ->
   VarDomain ->
   Ty ->
-  m ()
-insertTy name vd ty = do
-  Ctx vars funs dists cards <- get
-  let vars' = M.insert name (ty, vd) vars
-  put $ Ctx vars' funs dists cards
+  Ctx -> Ctx
+insertTy name vd ty (Ctx vars funs dists cards) = Ctx vars' funs dists cards
+  where vars' = M.insert name (ty, vd) vars
+  
 
 insertFun ::
   forall m.
-  (MonadTyCtx m) =>
+  (MonadState Ctx m) =>
   Text ->
   FunctionTy ->
-  m ()
+  m Ctx
 insertFun name fty = do
   Ctx vars funs dists cards <- get
   let funs' = M.insert name fty funs
-  put $ Ctx vars funs' dists cards
+  return $ Ctx vars funs' dists cards
 
 insertDist ::
   forall m.
-  (MonadTyCtx m) =>
+  (MonadState Ctx m) =>
   Text ->
   FunctionTy ->
   Bijector () ->
-  m ()
+  m Ctx
 insertDist name fty bij = do
   Ctx vars funs dists cards <- get
   let dists' = M.insert name (fty, bij) dists
-  put $ Ctx vars funs dists' cards
+  return $ Ctx vars funs dists' cards
 
 buildCtx :: [Decl] -> Ctx
-buildCtx decls = Ctx vars mempty mempty knownCards
+buildCtx decls = Ctx vars mempty mempty (S.map CardFV knownCards)
   where
     vars :: Map Text (Ty, VarDomain)
     vars = M.fromList $ mapMaybe go decls
@@ -128,7 +130,7 @@ buildCtx decls = Ctx vars mempty mempty knownCards
 
 annotateVarDomain :: (MonadTyCtx m) => ExprF a -> m (ExprF a)
 annotateVarDomain (VarF name _) = do
-  vars <- gets vars
+  vars <- asks vars
   case M.lookup name vars of
     Nothing -> throwError $ UnBoundVarIdent name []
     Just (t, vd) -> return $ VarF name vd
@@ -139,3 +141,18 @@ ctxFromSigs xs = Ctx mempty funs dists mempty
   where
     funs = M.fromList $ lefts xs
     dists = M.fromList [(name, (dty, bij)) | (name, dty, bij) <- rights xs]
+
+validateType :: MonadTyCtx m => Ty -> m ()
+validateType ty = do
+  ctxCards <- asks knownCards
+  let cards = getVec . shape $ ty 
+  let unknownCards = V.filter (not . (`S.member` ctxCards)) cards
+  case V.toList unknownCards of 
+    [] -> pure () 
+    c : _ -> throwError (UnBoundCardIdent c [])
+
+introCards :: S.Set Card -> Ctx -> Ctx 
+introCards cs =  \ctx -> ctx {knownCards = S.union cs (knownCards ctx)}
+
+introCardsFromTy :: Ty -> Ctx -> Ctx
+introCardsFromTy = introCards . S.fromList . V.toList . getVec . shape 

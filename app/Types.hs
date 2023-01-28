@@ -83,7 +83,7 @@ data Card
   | CardFV Text
   | CardBV Text -- polymorphic var
   -- maybe eventually existentially bound variables?
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 instance Pretty Card where pretty = viaShow
 

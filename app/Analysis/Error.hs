@@ -53,6 +53,7 @@ data TypeError
   | UnBoundFunctionIdent Text [Text]
   | UnBoundDistIdent Text [Text]
   | UnBoundVarIdent Text [Text]
+  | UnBoundCardIdent Card [Text]
   | NonHomogenousArrayLit [Ty]
   | Blame SourcePos TypeError
   | OtherErr Text
@@ -206,6 +207,14 @@ prettyError _ (UnBoundVarIdent fname []) =
 prettyError _ (UnBoundVarIdent fname near) =
   vsep
     [ "There is no known variable" <+> (bad $ pretty fname),
+      "Did you mean one of the following?",
+      indent 2 . vsep $ ("•" <+>) . pretty <$> near
+    ]
+prettyError _ (UnBoundCardIdent name []) =
+  "There is no known cardinality" <+> (bad $ pretty name)
+prettyError _ (UnBoundCardIdent name near) =
+  vsep
+    [ "There is no known cardinality" <+> (bad $ pretty name),
       "Did you mean one of the following?",
       indent 2 . vsep $ ("•" <+>) . pretty <$> near
     ]

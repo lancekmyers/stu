@@ -1,0 +1,4 @@
+fun foo(x : ['n]real) : ['n]real begin 
+    let y : ['m]real = 1.0; /* This should be an error */
+    ret x;
+end 
