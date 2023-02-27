@@ -41,7 +41,7 @@ import Data.Functor.Foldable (Recursive (project))
 import Data.Text (Text)
 
 import Text.Megaparsec.Pos (SourcePos)
-import Types (Ty (shape), broadcastsTo, shDiff)
+import Types (Ty, shape, broadcastsTo, shDiff)
 import Control.Monad.State.Strict (MonadState (get), modify)
 import Debug.Trace (trace)
 

@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Analysis.Context where
 
@@ -17,7 +18,7 @@ import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
-import Types (FunctionTy, Ty (shape), Card (CardFV, CardBV, CardN), Shape (getVec))
+import Types (FunctionTy, Ty, shape, Card (CardFV, CardBV, CardN), Shape (getVec))
 import qualified Data.Vector as V 
 import Control.Monad.State.Class (modify)
 import Control.Monad.Reader.Class (MonadReader (ask), asks)
@@ -92,7 +93,7 @@ lookupDistDefaultBij name = do
 insertTy ::
   Text ->
   VarDomain ->
-  Ty ->
+  Ty  ->
   Ctx -> Ctx
 insertTy name vd ty (Ctx vars funs dists cards) = Ctx vars' funs dists cards
   where vars' = M.insert name (ty, vd) vars

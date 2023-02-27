@@ -41,6 +41,7 @@ import Types
 import Control.Monad.Except
 
 import Errata 
+import Util (SrcSpan)
 
 incompatibleShapes = IncompatibleShapes 
 badFunApp = BadFunApp 

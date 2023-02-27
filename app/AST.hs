@@ -19,7 +19,6 @@ import Text.Megaparsec.Pos (SourcePos)
 import Types (Shape, Ty)
 
 type Name = Text
-
 type FuncName = Text
 
 data BinOp
@@ -74,10 +73,10 @@ data BijectorF a
 
 type Bijector ann = Cofree BijectorF ann
 
-data Decl
+data Decl 
   = CardDecl Name
   | FactorDecl Name
-  | DataDecl Name Ty
+  | DataDecl Name Ty 
   deriving (Show)
 
 -- include shape that is being broadcast over?

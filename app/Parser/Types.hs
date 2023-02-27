@@ -9,7 +9,7 @@ import Parser.Util
     pIdentUpper,
     symbol,
   )
-import Text.Megaparsec (between, choice, sepBy)
+import Text.Megaparsec (between, choice, sepBy, getSourcePos)
 import Text.Megaparsec.Char (char')
 import Types
   ( Card (..),
@@ -48,6 +48,8 @@ pShape = do
 
 pTy :: Parser Ty
 pTy = do
+  start <- getSourcePos
   shape <- pShape
   el_ty <- pElTy
-  return $ Ty shape el_ty
+  stop <- getSourcePos 
+  return $ Ty shape el_ty (Just (start, stop))

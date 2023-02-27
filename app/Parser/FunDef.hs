@@ -5,7 +5,7 @@ import Data.Text (Text)
 import Parser.Expr (pExpr)
 import Parser.Types (pTy)
 import Parser.Util (Parser, lexeme, pIdent, parens, symbol)
-import Text.Megaparsec (SourcePos, choice, sepBy)
+import Text.Megaparsec (SourcePos, choice, sepBy, (<?>))
 import Text.Megaparsec.Char (char)
 import Types (Ty)
 
@@ -25,8 +25,7 @@ pFunDef = do
   symbol "fun"
   name <- lexeme pIdent
   args <- parens $ sepBy pArg (symbol ",")
-  symbol ":"
-  ret <- pTy
+  ret <- (symbol ":" *> pTy) <?> "Type Annotation"
   symbol "begin"
   {- should the following be indentation sensitive? -}
   body <- pFunBody

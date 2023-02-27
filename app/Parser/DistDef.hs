@@ -52,7 +52,7 @@ pLPDF distName args ty = do
   symbol "begin"
   body <- pFunBody
   symbol "end"
-  return $ FunDef ("lpdf_" <> distName) ((name, ty) : args) (Ty [] REAL) body
+  return $ FunDef ("lpdf_" <> distName) ((name, ty) : args) (Ty [] REAL Nothing) body
 
 pSample :: Parser (SampleBody SourcePos)
 pSample = do

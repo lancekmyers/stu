@@ -26,7 +26,7 @@ import Data.Functor.Foldable (Recursive (project))
 import qualified Data.Set as S 
 import qualified Data.Vector as V
 import Text.Megaparsec.Pos (SourcePos)
-import Types (FunctionTy (FunctionTy), Ty (shape), broadcastsTo, Shape (getVec))
+import Types (FunctionTy (FunctionTy), Ty, shape, broadcastsTo, Shape (getVec))
 import Control.Monad.Reader.Class (MonadReader(local))
 import Control.Monad.State.Strict (MonadState (get))
 import Analysis.Context (Ctx)
