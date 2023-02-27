@@ -38,21 +38,21 @@ pDistDef = do
   symbol ":"
   eventTy <- pTy
   symbol "begin"
-  lpdf <- pLPDF args eventTy
-  sampler <- pSample
+  lpdf <- pLPDF name args eventTy
+  sampler <- pSample 
   bij <- pBij
   symbol "end"
 
   return $ DistDef name args eventTy lpdf sampler bij
 
-pLPDF :: [(Text, Ty)] -> Ty -> Parser (FunDef SourcePos)
-pLPDF args ty = do
+pLPDF :: Text -> [(Text, Ty)] -> Ty -> Parser (FunDef SourcePos)
+pLPDF distName args ty = do
   symbol "lpdf"
   name <- parens pIdent
   symbol "begin"
   body <- pFunBody
   symbol "end"
-  return $ FunDef name ((name, ty) : args) (Ty [] REAL) body
+  return $ FunDef ("lpdf_" <> distName) ((name, ty) : args) (Ty [] REAL) body
 
 pSample :: Parser (SampleBody SourcePos)
 pSample = do

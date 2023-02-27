@@ -1,4 +1,5 @@
-fun foo(x : ['n]real) : ['n]real begin 
-    let y : ['m]real = 1.0; /* This should be an error */
-    ret x;
+fun foo(x : ['n]real, y : ['m]real) : ['n]real begin 
+    let a ['n]real = 1.0; 
+    let b : ['m]real = y + y * x;
+    ret a;
 end 

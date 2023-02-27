@@ -52,11 +52,11 @@ library
         fsnotify == 0.3.*, 
         filepath >= 1.3, 
         directory >=1.2.7,
-        free == 5.*,
-        repa == 3.4.*, 
+        free == 5.*, 
         optparse-applicative == 0.17.*, 
         comonad == 5.*, 
-        data-fix == 0.3.*
+        data-fix == 0.3.*, 
+        errata
 
     hs-source-dirs:   app
     default-language: Haskell2010
@@ -100,9 +100,9 @@ executable stu
         filepath >= 1.3, 
         directory >=1.2.7,
         free == 5.*,
-        repa == 3.4.*, 
         optparse-applicative == 0.17.*, 
         comonad == 5.*,
+        errata, 
         stu
 
 

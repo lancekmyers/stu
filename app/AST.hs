@@ -108,6 +108,9 @@ data FunDef ann = FunDef
     _ret :: Ty,
     _body :: (FunBody ann)
   }
+instance Show (FunDef a) where 
+  show (FunDef name args _ _) = show name ++ ' ':show args
+
 
 data DistDef ann = DistDef
   { _distName :: Text,
@@ -119,9 +122,9 @@ data DistDef ann = DistDef
   }
 
 data FunBody ann
-  = LetPrimIn Text Ty (PrimApp ann) (FunBody ann)
-  | FunLetIn Text Ty (Expr ann) (FunBody ann)
-  | FunRet (Expr ann)
+  = LetPrimIn Text Ty (PrimApp ann) (FunBody ann) 
+  | FunLetIn Text Ty (Expr ann) (FunBody ann) 
+  | FunRet (Expr ann) 
 
 data SampleBody ann
   = SampleIn Text Ty (Distribution ann) (SampleBody ann)

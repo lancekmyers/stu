@@ -14,7 +14,7 @@ import AST
     VarDomain (Data, Param, Val),
   )
 import Analysis.Context (MonadTyCtx, lookupDistTy)
-import Analysis.Error (TypeError (..))
+import Analysis.Error
 import Analysis.Expr (inferTy)
 import Control.Comonad.Identity (Identity (runIdentity))
 import Control.Comonad.Trans.Cofree (Cofree, headF)
@@ -36,8 +36,8 @@ inferTyDist (Distribution dname args loc (_, br_sh)) = do
   -- annotated expressions passed as arguments
   arg_ann <- traverse inferTy args
   let arg_tys = map cofreeHead arg_ann
-  case unify arg_tys fty of
-    Left _ -> throwError $ Blame loc $ BadDistr dname arg_tys fty
+  blame loc $ case unify arg_tys fty of
+    Left _ -> throwError $ badDistr dname arg_tys fty
     Right (bd, ret) ->
       return $
         Distribution dname arg_ann ret (shRank <$> bd, br_sh)

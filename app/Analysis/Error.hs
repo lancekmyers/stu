@@ -38,9 +38,29 @@ import Types
     shDiff,
     shRank,
   )
+import Control.Monad.Except
 
--- should move to separate module
+import Errata 
 
+incompatibleShapes = IncompatibleShapes 
+badFunApp = BadFunApp 
+
+badDistr = BadDistr
+
+badStmt = BadStmt 
+
+binOpShapeErr = BinOpShapeErr
+
+binOpElTyErr = BinOpElTyErr 
+invalidGather = InvalidGather 
+expectedGot = ExpectedGot
+unBoundFunctionIdent = UnBoundFunctionIdent 
+unBoundDistIdent = UnBoundDistIdent
+unBoundVarIdent = UnBoundVarIdent
+unBoundCardIdent = UnBoundCardIdent
+nonHomogenousArrayLit = NonHomogenousArrayLit 
+-- blame = Blame 
+otherErr = OtherErr 
 data TypeError
   = IncompatibleShapes Shape Shape
   | BadFunApp Text [Ty] FunctionTy
@@ -59,9 +79,14 @@ data TypeError
   | OtherErr Text
   deriving (Show)
 
-blame :: SourcePos -> TypeError -> TypeError
-blame _ (Blame loc x) = Blame loc x
-blame loc err = Blame loc err
+-- blame :: SourcePos -> TypeError -> TypeError
+-- blame _ (Blame loc x) = Blame loc x
+blame loc x = catchError x $ \case 
+  Blame loc err -> throwError $ Blame loc err 
+  err -> throwError $ Blame loc err
+
+blameStmt :: MonadError TypeError m => Text -> m a -> m a
+blameStmt name x = catchError x $ \err -> throwError (BadStmt name err)
 
 bad :: Doc AnsiStyle -> Doc AnsiStyle
 bad = emph . annotate (color Red)

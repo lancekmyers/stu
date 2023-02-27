@@ -28,7 +28,7 @@ import Analysis.Context
   )
 import Analysis.DistDef (checkDistDef, checkDistDefs)
 import Analysis.Distribution (inferTyDist)
-import Analysis.Error (TypeError (..), prettyError)
+import Analysis.Error 
 import Analysis.Expr (inferTy)
 import Analysis.FunDef (checkFunDef, checkFunDefs)
 import Control.Comonad.Identity (Identity (..))
@@ -43,6 +43,7 @@ import Data.Text (Text)
 import Text.Megaparsec.Pos (SourcePos)
 import Types (Ty (shape), broadcastsTo, shDiff)
 import Control.Monad.State.Strict (MonadState (get), modify)
+import Debug.Trace (trace)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
@@ -54,7 +55,7 @@ stmtHandler ::
   Text ->
   m a ->
   m a
-stmtHandler name m = catchError m (throwError . BadStmt name)
+stmtHandler name m = catchError m (throwError . badStmt name)
 
 checkModelStmt ::
   forall m a.
@@ -66,14 +67,14 @@ checkModelStmt (ValStmt name ty val) = stmtHandler name $
     validateType ty
     val' <- inferTy val
     let ty' = cofreeHead val'
-    let err = ExpectedGot ty ty'
+    let err = expectedGot ty ty'
     when (not $ ty' `broadcastsTo` ty) (throwError err)
     return (ValStmt name ty val')
 checkModelStmt (ParamStmt name ty dist bij) = stmtHandler name $ 
   local (insertTy name Param ty) $ do
     validateType ty
     Distribution dname args ty' (bd, _) <- inferTyDist dist
-    let err = ExpectedGot ty ty'
+    let err = expectedGot ty ty'
     when (not $ ty' `broadcastsTo` ty) (throwError err)
     let br_sh = shDiff (shape ty') (shape ty)
     let bij' = fmap (const ty') <$> bij
@@ -83,7 +84,7 @@ checkModelStmt (ParamStmt name ty dist bij) = stmtHandler name $
 checkModelStmt (ObsStmt name dist) = stmtHandler name $ do
     Distribution dname args ty' (bd, _) <- inferTyDist dist
     ty <- lookupVar name
-    let err = ExpectedGot ty ty'
+    let err = expectedGot ty ty'
     when (not $ ty' `broadcastsTo` ty) (throwError err)
     let br_sh = shDiff (shape ty') (shape ty)
     let dist' = Distribution dname args ty (bd, br_sh)

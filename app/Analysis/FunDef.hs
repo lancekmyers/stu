@@ -11,8 +11,8 @@ import AST
     PrimApp (PrimApp),
     VarDomain (Bound, Local),
   )
-import Analysis.Context (Ctx (vars), MonadTyCtx, insertFun, insertTy, introCards, introCardsFromTy, validateType)
-import Analysis.Error (TypeError (ExpectedGot))
+import Analysis.Context (Ctx (vars), MonadTyCtx, insertFun, insertTy, introCards, introCardsFromTy, validateType, introArgs)
+import Analysis.Error
 import Analysis.Expr (inferTy)
 import Control.Comonad.Identity (Identity (..))
 import Control.Comonad.Trans.Cofree (Cofree, headF)
@@ -26,50 +26,37 @@ import Data.Functor.Foldable (Recursive (project))
 import qualified Data.Map.Strict as M
 import Text.Megaparsec.Pos (SourcePos (SourcePos))
 import Types (FunctionTy (FunctionTy), Ty, broadcastsTo)
+import Debug.Trace (trace)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
-deleteBoundVars :: (MonadTyCtx m) => m ()
-deleteBoundVars = do
-  ctx <- ask
-  let vars' = M.filter (\(_, vd) -> (vd == Bound) || (vd == Local)) (vars ctx)
-  return ()
 
 checkFunDefs :: forall m. (MonadError TypeError m, MonadState Ctx m) => [FunDef SourcePos] -> m [FunDef Ty]
-checkFunDefs funs = traverse go funs
+checkFunDefs funs = mapM go funs
   where
     go :: FunDef SourcePos -> m (FunDef Ty)
-    go defn@(FunDef name args ret body) = do
+    go defn = do
       ctx <- get
-      defn' <- runReaderT (checkFunDef defn) ctx
+      defn'@(FunDef name args ret body) <- runReaderT (checkFunDef defn) ctx
       insertFun name (FunctionTy args ret)
+      ctx' <- get
+      -- trace (show ctx') (pure ())
       return defn'
 
 checkFunDef ::
   (MonadTyCtx m) =>
-  FunDef SourcePos ->
+  FunDef SourcePos -> 
   m (FunDef Ty)
-checkFunDef (FunDef name args ret body) = local
-  (mconcat [insertTy x Bound t . introCardsFromTy t | (x, t) <- args])
-  $ do
+checkFunDef (FunDef name args ret body) = blameStmt name $
+  local (mconcat $ introCardsFromTy . snd <$> args) $ 
+  local (introArgs args) $ do
     (ret', body') <- checkFunBody body
-    let err = ExpectedGot ret ret'
+    let err = expectedGot ret ret'
     when (not $ ret' == ret) (throwError err)
-    deleteBoundVars
     -- insertFun name (FunctionTy args ret)
     return $ FunDef name args ret' body'
 
-{-
-forM_ args $ \(x, t) -> (insertTy x Bound t) >> (introCardsFromTy t)
-
-(ret', body') <- checkFunBody body
-let err = ExpectedGot ret ret'
-when (not $ ret' == ret) (throwError err)
-deleteBoundVars
-insertFun name (FunctionTy args ret)
-return $ FunDef name args ret' body'
--}
 
 checkFunBody ::
   (MonadTyCtx m) =>
@@ -87,7 +74,7 @@ checkFunBody (FunLetIn name ty val rest) = local (insertTy name Local ty) $ do
 
   val' <- inferTy val
   let ty' = cofreeHead val'
-  let err = ExpectedGot ty ty'
+  let err = expectedGot ty ty'
   when (not $ ty' `broadcastsTo` ty) (throwError err)
   (retTy, rest') <- checkFunBody rest
   return (retTy, FunLetIn name ty val' rest')
