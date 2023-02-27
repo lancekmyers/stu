@@ -28,7 +28,7 @@ import Prettyprinter.Render.Terminal
     bold,
     color,
   )
-import Text.Megaparsec.Pos (SourcePos (..), unPos)
+-- import Text.Megaparsec.Pos (SourcePos (..), unPos)
 import Types
   ( Card (CardN),
     ElTy,
@@ -42,6 +42,7 @@ import Control.Monad.Except
 
 import Errata 
 import Util (SrcSpan)
+import Text.Megaparsec (SourcePos(..), unPos)
 
 incompatibleShapes = IncompatibleShapes 
 badFunApp = BadFunApp 
@@ -76,7 +77,7 @@ data TypeError
   | UnBoundVarIdent Text [Text]
   | UnBoundCardIdent Card [Text]
   | NonHomogenousArrayLit [Ty]
-  | Blame SourcePos TypeError
+  | Blame SrcSpan TypeError
   | OtherErr Text
   deriving (Show)
 
@@ -246,8 +247,10 @@ prettyError _ (UnBoundCardIdent name near) =
     ]
 prettyError _ (NonHomogenousArrayLit tys) = "Nonhomogenous array literal"
 prettyError _ (OtherErr txt) = pretty txt
-prettyError src (Blame pos@(SourcePos fname line col) err) =
-  vsep
+prettyError src (Blame (pos, _) err) =
+  let 
+    SourcePos fname line col = pos 
+  in vsep
     [ bad "error"
         <+> ( emph . hcat $
                 [pretty fname, ":", pretty $ unPos line, ":", pretty $ unPos col]

@@ -4,10 +4,12 @@ import AST (Distribution (..))
 import Parser.Expr (pExpr)
 import Parser.Util (Parser, pIdentUpper, parens, symbol)
 import Text.Megaparsec (SourcePos, getSourcePos, sepBy)
+import Util (SrcSpan)
 
-pDistribution :: Parser (Distribution SourcePos)
+pDistribution :: Parser (Distribution SrcSpan)
 pDistribution = do
-  loc <- getSourcePos
+  from <- getSourcePos
   distName <- pIdentUpper
   distArgs <- parens $ pExpr `sepBy` symbol ","
-  return $ Distribution distName distArgs loc (Nothing, Nothing)
+  to <- getSourcePos 
+  return $ Distribution distName distArgs (from, to) (Nothing, Nothing)

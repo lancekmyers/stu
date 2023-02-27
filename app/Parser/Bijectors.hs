@@ -11,21 +11,24 @@ import Text.Megaparsec
     (<|>),
   )
 import qualified Text.Megaparsec.Char.Lexer as L
+import Util (SrcSpan)
 
 -- parsing Bijectors
-pBijNamed :: Parser (Bijector SourcePos)
+pBijNamed :: Parser (Bijector SrcSpan)
 pBijNamed = do
-  loc <- getSourcePos
+  from <- getSourcePos
   bijName <- pIdentUpper
   bijArgs <- parens $ (lexeme L.float) `sepBy` symbol ","
-  return . cofree $ loc :< (MkBij bijName bijArgs)
+  to <- getSourcePos
+  return . cofree $ (from, to) :< (MkBij bijName bijArgs)
 
-pBijChain :: Parser (Bijector SourcePos)
+pBijChain :: Parser (Bijector SrcSpan)
 pBijChain = do
-  loc <- getSourcePos
+  from <- getSourcePos
   symbol "Chain"
   bijs <- between (symbol "[") (symbol "]") $ pBij `sepBy` symbol ","
-  return . cofree $ loc :< (Chain bijs)
+  to <- getSourcePos 
+  return . cofree $ (from, to) :< (Chain bijs)
 
-pBij :: Parser (Bijector SourcePos)
+pBij :: Parser (Bijector SrcSpan)
 pBij = pBijChain <|> pBijNamed

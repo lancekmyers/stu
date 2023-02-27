@@ -24,18 +24,18 @@ import Control.Monad.State.Strict (MonadState (get))
 import Data.Functor.Compose (Compose (..))
 import Data.Functor.Foldable (Recursive (project))
 import qualified Data.Map.Strict as M
-import Text.Megaparsec.Pos (SourcePos (SourcePos))
 import Types (FunctionTy (FunctionTy), Ty, broadcastsTo)
 import Debug.Trace (trace)
+import Util (SrcSpan)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
 
-checkFunDefs :: forall m. (MonadError TypeError m, MonadState Ctx m) => [FunDef SourcePos] -> m [FunDef Ty]
+checkFunDefs :: forall m. (MonadError TypeError m, MonadState Ctx m) => [FunDef SrcSpan] -> m [FunDef Ty]
 checkFunDefs funs = mapM go funs
   where
-    go :: FunDef SourcePos -> m (FunDef Ty)
+    go :: FunDef SrcSpan -> m (FunDef Ty)
     go defn = do
       ctx <- get
       defn'@(FunDef name args ret body) <- runReaderT (checkFunDef defn) ctx
@@ -46,7 +46,7 @@ checkFunDefs funs = mapM go funs
 
 checkFunDef ::
   (MonadTyCtx m) =>
-  FunDef SourcePos -> 
+  FunDef SrcSpan -> 
   m (FunDef Ty)
 checkFunDef (FunDef name args ret body) = blameStmt name $
   local (mconcat $ introCardsFromTy . snd <$> args) $ 
@@ -60,7 +60,7 @@ checkFunDef (FunDef name args ret body) = blameStmt name $
 
 checkFunBody ::
   (MonadTyCtx m) =>
-  FunBody SourcePos ->
+  FunBody SrcSpan ->
   m (Ty, FunBody Ty)
 checkFunBody (LetPrimIn name ty (PrimApp fprim args) rest) =
   local (insertTy name Local ty) $ do

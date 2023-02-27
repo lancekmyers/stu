@@ -39,11 +39,10 @@ import Control.Monad.Reader (MonadReader(local), ReaderT (runReaderT))
 import Data.Functor.Compose (Compose (..))
 import Data.Functor.Foldable (Recursive (project))
 import Data.Text (Text)
-
-import Text.Megaparsec.Pos (SourcePos)
 import Types (Ty, shape, broadcastsTo, shDiff)
 import Control.Monad.State.Strict (MonadState (get), modify)
 import Debug.Trace (trace)
+import Util (SrcSpan)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
@@ -60,7 +59,7 @@ stmtHandler name m = catchError m (throwError . badStmt name)
 checkModelStmt ::
   forall m a.
   (MonadTyCtx m) =>
-  ModelStmt SourcePos ->
+  ModelStmt SrcSpan ->
   m (ModelStmt Ty)
 checkModelStmt (ValStmt name ty val) = stmtHandler name $ 
   local (insertTy name Val ty) $ do
@@ -94,11 +93,11 @@ checkModelStmt (ObsStmt name dist) = stmtHandler name $ do
 checkModel ::
   forall m.
   (MonadState Ctx m, MonadError TypeError m) =>
-  Model SourcePos ->
+  Model SrcSpan ->
   m (Model Ty)
 checkModel (Model stmts) = Model <$> traverse go stmts 
   where 
-    go :: ModelStmt SourcePos -> m (ModelStmt Ty)
+    go :: ModelStmt SrcSpan -> m (ModelStmt Ty)
     go stmt = get >>= runReaderT (checkModelStmt stmt) >>= \x -> case x of 
       ObsStmt _ _ -> pure x
       (ParamStmt name ty dist bij) -> modify (insertTy name Param ty) >> pure x
@@ -111,7 +110,7 @@ allSame xs = and $ zipWith (==) xs (tail xs)
 checkLib ::
   forall m.
   (MonadState Ctx m, MonadError TypeError m) =>
-  Library SourcePos ->
+  Library SrcSpan ->
   m (Library Ty)
 checkLib (Library funs dists) = do
   funs' <- checkFunDefs funs

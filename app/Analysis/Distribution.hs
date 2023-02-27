@@ -21,15 +21,15 @@ import Control.Comonad.Trans.Cofree (Cofree, headF)
 import Control.Monad.Except (MonadError (..))
 import Data.Functor.Compose (Compose (getCompose))
 import Data.Functor.Foldable (Recursive (project))
-import Text.Megaparsec.Pos (SourcePos)
 import Types (Ty, shRank, unify)
+import Util (SrcSpan)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
 inferTyDist ::
   (MonadTyCtx m) =>
-  Distribution SourcePos ->
+  Distribution SrcSpan ->
   m (Distribution Ty)
 inferTyDist (Distribution dname args loc (_, br_sh)) = do
   fty <- lookupDistTy dname

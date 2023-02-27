@@ -18,8 +18,9 @@ import Parser.Util
     parens,
     symbol,
   )
-import Text.Megaparsec (SourcePos, choice, sepBy)
+import Text.Megaparsec (choice, sepBy)
 import Types (ElTy (REAL), Ty (Ty))
+import Util (SrcSpan)
 
 -- >>> runParser pArg "" "x : []real"
 -- Right ("x",[]real)
@@ -30,7 +31,7 @@ pArg = do
   ty <- pTy
   return (name, ty)
 
-pDistDef :: Parser (DistDef SourcePos)
+pDistDef :: Parser (DistDef SrcSpan)
 pDistDef = do
   symbol "dist"
   name <- lexeme pIdentUpper
@@ -45,7 +46,7 @@ pDistDef = do
 
   return $ DistDef name args eventTy lpdf sampler bij
 
-pLPDF :: Text -> [(Text, Ty)] -> Ty -> Parser (FunDef SourcePos)
+pLPDF :: Text -> [(Text, Ty)] -> Ty -> Parser (FunDef SrcSpan)
 pLPDF distName args ty = do
   symbol "lpdf"
   name <- parens pIdent
@@ -54,17 +55,17 @@ pLPDF distName args ty = do
   symbol "end"
   return $ FunDef ("lpdf_" <> distName) ((name, ty) : args) (Ty [] REAL Nothing) body
 
-pSample :: Parser (SampleBody SourcePos)
+pSample :: Parser (SampleBody SrcSpan)
 pSample = do
   symbol "sample"
   body <- pSampleBody
   symbol "end"
   return body
 
-pSampleBody :: Parser (SampleBody SourcePos)
+pSampleBody :: Parser (SampleBody SrcSpan)
 pSampleBody = choice ([pLetIn, pSampleIn, pRet, pSampleUnif] :: [_])
 
-pLetIn :: Parser (SampleBody SourcePos)
+pLetIn :: Parser (SampleBody SrcSpan)
 pLetIn = do
   symbol "let"
   name <- lexeme pIdent
@@ -76,7 +77,7 @@ pLetIn = do
   rest <- pSampleBody
   return (SampleLetIn name ty val rest)
 
-pSampleIn :: Parser (SampleBody SourcePos)
+pSampleIn :: Parser (SampleBody SrcSpan)
 pSampleIn = do
   symbol "gen"
   name <- lexeme pIdent
@@ -88,7 +89,7 @@ pSampleIn = do
   rest <- pSampleBody
   return $ SampleIn name ty dist rest
 
-pSampleUnif :: Parser (SampleBody SourcePos)
+pSampleUnif :: Parser (SampleBody SrcSpan)
 pSampleUnif = do
   symbol "unif"
   name <- lexeme pIdent
@@ -98,7 +99,7 @@ pSampleUnif = do
   rest <- pSampleBody
   return $ SampleUnifIn name ty rest
 
-pRet :: Parser (SampleBody SourcePos)
+pRet :: Parser (SampleBody SrcSpan)
 pRet = do
   symbol "ret"
   val <- pExpr

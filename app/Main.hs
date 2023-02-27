@@ -69,6 +69,7 @@ import qualified Text.Builder as B
 import Text.Megaparsec (SourcePos, errorBundlePretty, runParser)
 import Types (Ty)
 import Paths_stu
+import Util (SrcSpan)
 data Options
   = BuildOptions
       { inFileName' :: FilePath,
@@ -115,14 +116,14 @@ options =
 type Err = Doc AnsiStyle
 
 
-parseFile :: FilePath -> ExceptT Err IO (Text, Program SourcePos)
+parseFile :: FilePath -> ExceptT Err IO (Text, Program SrcSpan)
 parseFile fname = do
   fcontents <- lift $ TIO.readFile fname
   case runParser parseProgram fname fcontents of
     Left err -> throwError . pretty $ errorBundlePretty err
     Right prog -> return $ (fcontents, prog)
 
-parseLibFile :: FilePath -> ExceptT Err IO (Text, Library SourcePos)
+parseLibFile :: FilePath -> ExceptT Err IO (Text, Library SrcSpan)
 parseLibFile fname = do
   fcontents <- lift $ TIO.readFile fname
   case runParser parseLibrary fname fcontents of
@@ -136,7 +137,7 @@ parseSig fname = do
     Left err -> throwError . pretty $ errorBundlePretty err
     Right ctx -> return $ ctxFromSigs ctx
 
-checkProgram :: Monad m => Text -> Ctx -> Program SourcePos -> ExceptT Err m (Program Ty, Ctx)
+checkProgram :: Monad m => Text -> Ctx -> Program SrcSpan -> ExceptT Err m (Program Ty, Ctx)
 checkProgram src ctx_std (Program decls model) = do
   let ctx = ctx_std <> buildCtx decls
   (model, ctx') <-
@@ -144,7 +145,7 @@ checkProgram src ctx_std (Program decls model) = do
       runStateT (checkModel model) ctx
   return $ (Program decls model, ctx)
 
-checkLibrary :: Monad m => Text -> Library SourcePos -> ExceptT Err m (Library Ty, Ctx)
+checkLibrary :: Monad m => Text -> Library SrcSpan -> ExceptT Err m (Library Ty, Ctx)
 checkLibrary src lib = do
   (lib', ctx') <-
     withExceptT (prettyError src) $

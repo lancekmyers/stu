@@ -17,6 +17,7 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Text.Megaparsec.Pos (SourcePos)
 import Types (Shape, Ty)
+import Util (SrcSpan)
 
 type Name = Text
 type FuncName = Text
@@ -54,7 +55,7 @@ data ExprF a
 
 type Expr ann = Cofree ExprF ann
 
-type ExprSrc = Expr SourcePos
+type ExprSrc = Expr SrcSpan
 
 type DistName = Text
 

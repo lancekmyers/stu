@@ -25,20 +25,20 @@ import Data.Functor.Compose (Compose (getCompose))
 import Data.Functor.Foldable (Recursive (project))
 import qualified Data.Set as S 
 import qualified Data.Vector as V
-import Text.Megaparsec.Pos (SourcePos)
 import Types (FunctionTy (FunctionTy), Ty, shape, broadcastsTo, Shape (getVec))
 import Control.Monad.Reader.Class (MonadReader(local))
 import Control.Monad.State.Strict (MonadState (get))
 import Analysis.Context (Ctx)
 import Control.Monad.Reader (runReaderT, MonadReader (ask))
+import Util (SrcSpan)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
-checkDistDefs :: forall m. (MonadError TypeError m, MonadState Ctx m) => [DistDef SourcePos] -> m [DistDef Ty]
+checkDistDefs :: forall m. (MonadError TypeError m, MonadState Ctx m) => [DistDef SrcSpan] -> m [DistDef Ty]
 checkDistDefs dists = traverse go dists
   where
-    go :: DistDef SourcePos -> m (DistDef Ty)
+    go :: DistDef SrcSpan -> m (DistDef Ty)
     go dist = do
       ctx <- get
       dist'@(DistDef name args eventTy lpdf sample bij) <- 
@@ -48,7 +48,7 @@ checkDistDefs dists = traverse go dists
 
 checkDistDef ::
   (MonadTyCtx m) =>
-  DistDef SourcePos ->
+  DistDef SrcSpan ->
   m (DistDef Ty)
 checkDistDef (DistDef name args eventTy lpdf sample bij) = do
   ctx <- ask   
@@ -60,7 +60,7 @@ checkDistDef (DistDef name args eventTy lpdf sample bij) = do
   let bij' = (const eventTy) <$> bij
   return $ DistDef name args eventTy lpdf' sample' bij'
 
-checkSample :: (MonadTyCtx m) => SampleBody SourcePos -> m (Ty, SampleBody Ty)
+checkSample :: (MonadTyCtx m) => SampleBody SrcSpan -> m (Ty, SampleBody Ty)
 checkSample (SampleRet val) = do
   val' <- inferTy val
   let ty' = cofreeHead val'

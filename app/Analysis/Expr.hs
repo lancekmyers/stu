@@ -22,7 +22,6 @@ import Data.Functor.Foldable
   ( Corecursive (embed),
     Recursive (para, project),
   )
-import Text.Megaparsec.Pos (SourcePos)
 import Types
   ( Card (CardN),
     ElTy (..),
@@ -32,18 +31,19 @@ import Types
     shUncons,
     unify,
   )
+import Util (SrcSpan)
 
 inferTy ::
   forall m.
   ( MonadTyCtx m,
     MonadError TypeError m
   ) =>
-  Cofree ExprF SourcePos ->
+  Cofree ExprF SrcSpan ->
   m (Cofree ExprF Ty)
 inferTy = para (go . runIdentity . getCompose)
   where
     go ::
-      CofreeF ExprF SourcePos (Cofree ExprF SourcePos, m (Cofree ExprF Ty)) ->
+      CofreeF ExprF SrcSpan (Cofree ExprF SrcSpan, m (Cofree ExprF Ty)) ->
       m (Cofree ExprF Ty)
     go (loc :< exp) = do
       let embed' = embed . Compose . Identity
