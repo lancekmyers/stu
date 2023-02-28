@@ -33,7 +33,8 @@ library
         Analysis.Expr, Analysis.Distribution, Analysis.FunDef, Analysis.DistDef,
         Parser, Parser.Types, Parser.Expr, Parser.Distribution,
         Parser.Util, Parser.Signature, Parser.Bijectors,
-        Parser.DistDef, Parser.FunDef
+        Parser.DistDef, Parser.FunDef, 
+        Util
 
     -- other-extensions:
     build-depends:
@@ -56,7 +57,7 @@ library
         optparse-applicative == 0.17.*, 
         comonad == 5.*, 
         data-fix == 0.3.*, 
-        errata
+        diagnose == 2.4.*
 
     hs-source-dirs:   app
     default-language: Haskell2010
@@ -78,6 +79,7 @@ executable stu
         Parser, Parser.Types, Parser.Expr, Parser.Distribution,
         Parser.Util, Parser.Signature, Parser.Bijectors,
         Parser.DistDef, Parser.FunDef, 
+        Util,
         Paths_stu
 
 
@@ -102,7 +104,7 @@ executable stu
         free == 5.*,
         optparse-applicative == 0.17.*, 
         comonad == 5.*,
-        errata, 
+        diagnose, 
         stu
 
 

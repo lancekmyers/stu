@@ -17,6 +17,7 @@ import Types
     Shape (MkShape),
     Ty (Ty),
   )
+import Util (mkPos)
 
 pCard :: Parser Card
 pCard =
@@ -52,4 +53,4 @@ pTy = do
   shape <- pShape
   el_ty <- pElTy
   stop <- getSourcePos 
-  return $ Ty shape el_ty (Just (start, stop))
+  return $ Ty shape el_ty (Just (mkPos start stop))

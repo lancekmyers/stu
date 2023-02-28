@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts, RankNTypes, ScopedTypeVariables #-}
 
-
 module Analysis.DistDef where
 
 -- import Control.Monad.State.Strict (gets, withStateT, MonadState (get))
