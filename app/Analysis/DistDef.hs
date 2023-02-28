@@ -54,8 +54,8 @@ checkDistDef (DistDef name args eventTy lpdf sample bij) = do
   lpdf' <- checkFunDef lpdf
   let insertArgs = mconcat [insertTy x Bound t . introCardsFromTy t | (x, t) <- args]
   (eventTy', sample') <- local insertArgs $ checkSample sample
-  let err = expectedGot eventTy eventTy'
-  when (eventTy' /= eventTy) $ throwError err
+  -- let err = expectedGot eventTy eventTy'
+  when (eventTy' /= eventTy) $ doesNotMatchReturnType eventTy eventTy'
   let bij' = (const eventTy) <$> bij
   return $ DistDef name args eventTy lpdf' sample' bij'
 
@@ -67,8 +67,8 @@ checkSample (SampleRet val) = do
 checkSample (SampleIn name ty dist rest) = local (insertTy name Local ty) $ do
   validateType ty
   dist'@(Distribution _ _ ty' batch_info) <- inferTyDist dist
-  let err = expectedGot ty ty'
-  when (not $ ty' `broadcastsTo` ty) (throwError err)
+  -- let err = expectedGot ty ty'
+  when (not $ ty' `broadcastsTo` ty) $ doesNotMatchDeclaredType ty ty'
   (eventTy, rest') <- checkSample rest
   return (eventTy, SampleIn name ty dist' rest')
 checkSample (SampleUnifIn name ty rest) = local (insertTy name Local ty) $ do
@@ -79,7 +79,7 @@ checkSample (SampleLetIn name ty val rest) = local (insertTy name Local ty) $ do
   validateType ty
   val' <- inferTy val
   let ty' = cofreeHead val'
-  let err = expectedGot ty ty'
-  when (not $ ty' `broadcastsTo` ty) (throwError err)
+  -- let err = expectedGot ty ty'
+  when (not $ ty' `broadcastsTo` ty) $ doesNotMatchDeclaredType ty ty'
   (eventTy, rest') <- checkSample rest
   return (eventTy, SampleLetIn name ty val' rest')

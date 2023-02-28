@@ -18,13 +18,13 @@ import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
-import Types (FunctionTy, Ty, shape, Card (CardFV, CardBV, CardN), Shape (getVec))
+import Types (FunctionTy, Ty(..), shape, Card (CardFV, CardBV, CardN), Shape (getVec))
 import qualified Data.Vector as V 
 import Control.Monad.State.Class (modify)
 import Control.Monad.Reader.Class (MonadReader (ask), asks)
 import qualified Data.Text as T
 import Debug.Trace (trace)
-
+import Util (SrcSpan)
 
 data Ctx = Ctx
   { vars :: Map Text (Ty, VarDomain),
@@ -51,43 +51,47 @@ type MonadTyCtx m = (MonadReader Ctx m, MonadError TypeError m)
 
 lookupVar ::
   (MonadTyCtx m) =>
+  Maybe SrcSpan -> 
   Text ->
   m Ty
-lookupVar name = do
+lookupVar loc name = do
   varCtx <- asks vars
   case M.lookup name varCtx of 
-    Nothing -> throwError $ unBoundVarIdent name []
+    Nothing -> unBoundVarIdent loc name $ M.keys varCtx
     Just (ty, _vd) -> return ty
 
 lookupFun ::
   (MonadTyCtx m) =>
+  Maybe SrcSpan ->
   Text ->
   m FunctionTy
-lookupFun name = do
+lookupFun loc name = do
   funCtx <- asks funs 
   -- trace (show $ (name, M.keys funCtx)) $ pure () 
   case M.lookup name funCtx of
-    Nothing -> throwError $ unBoundFunctionIdent name []
+    Nothing -> unBoundFunctionIdent loc name $ M.keys funCtx
     Just ty -> return ty
 
 lookupDistTy ::
   (MonadTyCtx m) =>
+  Maybe SrcSpan -> 
   Text ->
   m FunctionTy
-lookupDistTy name = do
+lookupDistTy loc name = do
   distsCtx <- asks dists
   case M.lookup name distsCtx of
-    Nothing -> throwError $ unBoundDistIdent name []
+    Nothing -> unBoundDistIdent loc name $ M.keys distsCtx
     Just (ty, _) -> return ty
 
 lookupDistDefaultBij ::
   (MonadTyCtx m) =>
+  Maybe SrcSpan -> 
   Text ->
   m (Bijector ())
-lookupDistDefaultBij name = do
+lookupDistDefaultBij loc name = do
   distsCtx <- asks dists
   case M.lookup name distsCtx of
-    Nothing -> throwError $ unBoundDistIdent name []
+    Nothing -> unBoundDistIdent loc name $ M.keys distsCtx
     Just (_, bij) -> return bij
 
 insertTy ::
@@ -142,13 +146,13 @@ buildCtx decls = Ctx vars mempty mempty (S.map CardFV knownCards)
         go (FactorDecl name) = Just name
         go _ = Nothing
 
-annotateVarDomain :: (MonadTyCtx m) => ExprF a -> m (ExprF a)
-annotateVarDomain (VarF name _) = do
+annotateVarDomain :: (MonadTyCtx m) => SrcSpan -> ExprF a -> m (ExprF a)
+annotateVarDomain loc (VarF name _) = do
   vars <- asks vars
   case M.lookup name vars of
-    Nothing -> throwError $ unBoundVarIdent name []
+    Nothing -> unBoundVarIdent (Just loc) name $ M.keys vars
     Just (t, vd) -> return $ VarF name vd
-annotateVarDomain x = return x
+annotateVarDomain loc x = return x
 
 ctxFromSigs :: [Either (Text, FunctionTy) (Text, FunctionTy, Bijector ())] -> Ctx
 ctxFromSigs xs = Ctx mempty funs dists mempty
@@ -156,15 +160,16 @@ ctxFromSigs xs = Ctx mempty funs dists mempty
     funs = M.fromList $ lefts xs
     dists = M.fromList [(name, (dty, bij)) | (name, dty, bij) <- rights xs]
 
-validateType :: MonadTyCtx m => Ty -> m ()
-validateType ty = do
+validateType :: forall m. MonadTyCtx m => Ty -> m ()
+validateType ty@(Ty _ _ (Just loc)) = do
   ctxCards <- asks knownCards
   let cards = getVec . shape $ ty 
   let isLitInt = \(CardN _) -> True
   let unknownCards = V.filter (not . (`S.member` ctxCards)) cards
   case filter (not . isLitInt) $ V.toList unknownCards of 
-    [] -> pure () 
-    c : _ -> throwError (unBoundCardIdent c [])
+    [] -> pure ()
+    CardFV c : _ ->  unBoundCardIdent (Just loc) c ([] :: [Text])
+    CardBV c : _ ->  unBoundCardIdent (Just loc) c ([] :: [Text])
 
 introCards :: S.Set Card -> Ctx -> Ctx 
 introCards cs =  \ctx -> ctx {knownCards = S.union cs (knownCards ctx)}

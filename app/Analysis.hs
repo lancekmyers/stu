@@ -47,44 +47,35 @@ import Util (SrcSpan)
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
-
-
-stmtHandler ::
-  (MonadError TypeError m) =>
-  Text ->
-  m a ->
-  m a
-stmtHandler name m = catchError m (throwError . badStmt name)
-
 checkModelStmt ::
   forall m a.
   (MonadTyCtx m) =>
   ModelStmt SrcSpan ->
   m (ModelStmt Ty)
-checkModelStmt (ValStmt name ty val) = stmtHandler name $ 
+checkModelStmt (ValStmt name ty val) =
   local (insertTy name Val ty) $ do
     validateType ty
     val' <- inferTy val
     let ty' = cofreeHead val'
-    let err = expectedGot ty ty'
-    when (not $ ty' `broadcastsTo` ty) (throwError err)
+    -- let err = expectedGot ty ty'
+    when (not $ ty' `broadcastsTo` ty) $ doesNotMatchReturnType ty ty'
     return (ValStmt name ty val')
-checkModelStmt (ParamStmt name ty dist bij) = stmtHandler name $ 
+checkModelStmt (ParamStmt name ty dist bij) =
   local (insertTy name Param ty) $ do
     validateType ty
     Distribution dname args ty' (bd, _) <- inferTyDist dist
-    let err = expectedGot ty ty'
-    when (not $ ty' `broadcastsTo` ty) (throwError err)
+    -- let err = expectedGot ty ty'
+    when (not $ ty' `broadcastsTo` ty) $ doesNotMatchReturnType ty ty'
     let br_sh = shDiff (shape ty') (shape ty)
     let bij' = fmap (const ty') <$> bij
     -- ensure bij' is a known bijector of the right type
     let dist' = Distribution dname args ty (bd, br_sh)
     return (ParamStmt name ty dist' bij')
-checkModelStmt (ObsStmt name dist) = stmtHandler name $ do
+checkModelStmt (ObsStmt name dist) = do 
     Distribution dname args ty' (bd, _) <- inferTyDist dist
-    ty <- lookupVar name
-    let err = expectedGot ty ty'
-    when (not $ ty' `broadcastsTo` ty) (throwError err)
+    ty <- lookupVar undefined name
+    -- let err = expectedGot ty ty'
+    when (not $ ty' `broadcastsTo` ty) $ doesNotMatchReturnType ty ty'
     let br_sh = shDiff (shape ty') (shape ty)
     let dist' = Distribution dname args ty (bd, br_sh)
     return (ObsStmt name dist')

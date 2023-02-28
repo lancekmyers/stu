@@ -48,12 +48,11 @@ checkFunDef ::
   (MonadTyCtx m) =>
   FunDef SrcSpan -> 
   m (FunDef Ty)
-checkFunDef (FunDef name args ret body) = blameStmt name $
+checkFunDef (FunDef name args ret body) =
   local (mconcat $ introCardsFromTy . snd <$> args) $ 
   local (introArgs args) $ do
     (ret', body') <- checkFunBody body
-    let err = expectedGot ret ret'
-    when (not $ ret' == ret) (throwError err)
+    when (not $ ret' == ret) $ doesNotMatchReturnType ret ret'
     -- insertFun name (FunctionTy args ret)
     return $ FunDef name args ret' body'
 
@@ -69,13 +68,12 @@ checkFunBody (LetPrimIn name ty (PrimApp fprim args) rest) =
     args' <- traverse inferTy args
     (rty, rest') <- checkFunBody rest
     return $ (rty, LetPrimIn name ty (PrimApp fprim args') rest')
-checkFunBody (FunLetIn name ty val rest) = local (insertTy name Local ty) $ do
+checkFunBody (FunLetIn name ty val rest) 
+  = local (insertTy name Local ty) $ do
   validateType ty
-
   val' <- inferTy val
   let ty' = cofreeHead val'
-  let err = expectedGot ty ty'
-  when (not $ ty' `broadcastsTo` ty) (throwError err)
+  when (not $ ty' `broadcastsTo` ty) $ doesNotMatchDeclaredType ty ty'
   (retTy, rest') <- checkFunBody rest
   return (retTy, FunLetIn name ty val' rest')
 checkFunBody (FunRet expr) = do

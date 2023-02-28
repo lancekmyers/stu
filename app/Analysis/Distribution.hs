@@ -32,12 +32,12 @@ inferTyDist ::
   Distribution SrcSpan ->
   m (Distribution Ty)
 inferTyDist (Distribution dname args loc (_, br_sh)) = do
-  fty <- lookupDistTy dname
+  fty <- lookupDistTy (Just loc) dname
   -- annotated expressions passed as arguments
   arg_ann <- traverse inferTy args
   let arg_tys = map cofreeHead arg_ann
-  blame loc $ case unify arg_tys fty of
-    Left _ -> throwError $ badDistr dname arg_tys fty
+  case unify arg_tys fty of
+    Left _ -> badDistr dname loc arg_tys fty
     Right (bd, ret) ->
       return $
         Distribution dname arg_ann ret (shRank <$> bd, br_sh)

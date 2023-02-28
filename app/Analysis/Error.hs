@@ -43,7 +43,10 @@ import Control.Monad.Except
 import Error.Diagnose
 import Util (SrcSpan)
 import Text.Megaparsec (SourcePos(..), unPos)
+import Data.Foldable (toList)
 
+
+{-
 incompatibleShapes =  IncompatibleShapes 
 badFunApp = BadFunApp 
 badDistr = BadDistr
@@ -59,32 +62,38 @@ unBoundCardIdent = UnBoundCardIdent
 nonHomogenousArrayLit = NonHomogenousArrayLit 
 -- blame = Blame 
 otherErr = OtherErr 
+-}
+type TypeError = Report (Doc AnsiStyle)
 
-type TypeError' = Report (Doc AnsiStyle)
-
-badFunApp' 
-  :: MonadError  TypeError' m 
-  => Text -> SrcSpan -> [(SrcSpan, Ty)] 
+badFunApp
+  :: MonadError TypeError m 
+  => Text -> SrcSpan -> [Ty] 
   -> FunctionTy 
   -> m a
-badFunApp' fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err 
+badFunApp fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err 
   Nothing 
-  ("Error in application of" <+> pretty fname) 
+  ("Error in application of function" <+> pretty fname) 
   ((fnAppPos, This "Incorrect arguments given") : 
     [ (pos, Where $ vsep
         [ "in the argument" <+> emph (pretty x),
           indent 2 "expected:" <+> (pretty expTy),
           indent 2 "provided:" <+> (pretty gotTy)
         ])
-    | ((x, expTy), (pos, gotTy)) <- zip argTys given ])
-  [ {- hints -} ]
+    | ((x, expTy), gotTy@(Ty _ _ (Just pos))) <- zip argTys given ])
+  [ Note $ vsep
+        [ "in the argument" <+> emph (pretty x),
+          indent 2 "expected:" <+> (pretty expTy),
+          indent 2 "provided:" <+> (pretty gotTy)
+        ]
+    | ((x, expTy), gotTy@(Ty _ _ Nothing)) <- zip argTys given ]
 
-badDistr' 
-  :: MonadError  TypeError' m 
-  => Text -> SrcSpan -> [(SrcSpan, Ty)] 
+
+badDistr
+  :: MonadError TypeError m 
+  => Text -> SrcSpan -> [Ty] 
   -> FunctionTy 
   -> m a
-badDistr' fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err 
+badDistr fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err 
   Nothing 
   ("Error in application of distribution" <+> pretty fname) 
   ((fnAppPos, This "Incorrect arguments given") : 
@@ -93,53 +102,79 @@ badDistr' fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err
           indent 2 "expected:" <+> (pretty expTy),
           indent 2 "provided:" <+> (pretty gotTy)
         ])
-    | ((x, expTy), (pos, gotTy)) <- zip argTys given ])
-  [ {- hints -} ]
+    | ((x, expTy), gotTy@(Ty _ _ (Just pos))) <- zip argTys given ])
+  [ Note $ vsep
+        [ "in the argument" <+> emph (pretty x),
+          indent 2 "expected:" <+> (pretty expTy),
+          indent 2 "provided:" <+> (pretty gotTy)
+        ]
+    | ((x, expTy), gotTy@(Ty _ _ Nothing)) <- zip argTys given ]
 
 
 unBoundIdent 
-  :: MonadError  TypeError' m
-  => Text -> SrcSpan -> Text -> [Text] -> m a
-unBoundIdent univ pos name potential = throwError $ Err 
+  :: (MonadError TypeError m, Foldable f)
+  => Text -> Maybe SrcSpan -> Text -> f Text -> m a
+unBoundIdent univ (Just pos) name potential = throwError $ Err 
   Nothing 
   ("Unknown identifier") 
   [(pos, This $ "There is no known" <+> pretty univ <+> pretty name)]
   (Hint "Did you mean ... ?" : [
     Hint . indent 2 . ("•" <+>) $ pretty suggestion
-    | suggestion <- potential
+    | suggestion <- toList potential
+  ])
+unBoundIdent univ Nothing name potential = throwError $ Err 
+  Nothing 
+  ("There is no known" <+> pretty univ <+> pretty name)
+  []
+  (Hint "Did you mean ... ?" : [
+    Hint . indent 2 . ("•" <+>) $ pretty suggestion
+    | suggestion <- toList potential
   ])
 
-unBoundFunctionIdent' 
-  :: MonadError  TypeError' m
-  => SrcSpan -> Text -> [Text] -> m a
-unBoundFunctionIdent' = unBoundIdent "function"
-unBoundDistIdent' 
-  :: MonadError  TypeError' m
-  => SrcSpan -> Text -> [Text] -> m a
-unBoundDistIdent' = unBoundIdent "distribution"
-unBoundCardIdent'
-  :: MonadError  TypeError' m
-  => SrcSpan -> Text -> [Text] -> m a
-unBoundCardIdent' = unBoundIdent "cardinality"
-unBoundVarIdent'
-  :: MonadError  TypeError' m
-  => SrcSpan -> Text -> [Text] -> m a
-unBoundVarIdent' = unBoundIdent "variable"
+unBoundFunctionIdent 
+  :: (MonadError TypeError m, Foldable f)
+  => Maybe SrcSpan -> Text -> f Text -> m a
+unBoundFunctionIdent = unBoundIdent "function"
+unBoundDistIdent
+  :: (MonadError TypeError m, Foldable f)
+  => Maybe SrcSpan -> Text -> f Text -> m a
+unBoundDistIdent = unBoundIdent "distribution"
+unBoundCardIdent
+  :: (MonadError TypeError m, Foldable f)
+  => Maybe SrcSpan -> Text -> f Text -> m a
+unBoundCardIdent = unBoundIdent "cardinality"
+unBoundVarIdent
+  :: (MonadError TypeError m, Foldable f)
+  => Maybe SrcSpan -> Text -> f Text -> m a
+unBoundVarIdent = unBoundIdent "variable"
 
 doesNotMatchDeclaredType 
-  :: MonadError TypeError' m
-  => Ty -> Ty -> SrcSpan -> m a
-doesNotMatchDeclaredType expTy gotTy pos  = throwError $ Err 
+  :: MonadError TypeError m
+  => Ty -> Ty -> m a
+doesNotMatchDeclaredType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2))  
+  = throwError $ Err 
   Nothing 
   ("The right hand side does not have the expected type" <+> pretty expTy)
-  [ (pos, Where $ "Has type" <+> pretty gotTy)
-  , (pos, Where $ "Was expecting something of this type") ]
+  [ (p2, Where $ "Has type" <+> pretty gotTy)
+  , (p1, Where $ "Was expecting something of this type") ]
   []
 
-binOpErr' 
-  :: MonadError TypeError' m 
+doesNotMatchReturnType 
+  :: MonadError TypeError m
+  => Ty -> Ty -> m a
+doesNotMatchReturnType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2))  
+  = throwError $ Err 
+  Nothing 
+  ("The function body does not return the correct type" <+> pretty expTy)
+  [ (p2, Where $ "Has type" <+> pretty gotTy)
+  , (p1, Where $ "Was expecting something of this type") ]
+  []
+
+
+binOpErr
+  :: MonadError TypeError m 
   => BinOp -> SrcSpan -> Ty -> Ty -> m a
-binOpErr' op pos t1@(Ty _ _ (Just pos1)) t2@(Ty _ _ (Just pos2)) 
+binOpErr op pos t1@(Ty _ _ (Just pos1)) t2@(Ty _ _ (Just pos2)) 
   = throwError $ Err 
   Nothing 
   ("Cannot apply" <+> (pretty $ show op) <+> "to the given arguments")
@@ -149,7 +184,7 @@ binOpErr' op pos t1@(Ty _ _ (Just pos1)) t2@(Ty _ _ (Just pos2))
   , (pos2, Where $ "The right hand side has type" <+> pretty t2)
   ] 
   []
-binOpErr' op pos t1 t2 
+binOpErr op pos t1 t2 
   = throwError $ Err 
   Nothing 
   ("Cannot apply" <+> (pretty $ show op) <+> "to the given arguments")
@@ -160,24 +195,35 @@ binOpErr' op pos t1 t2
   , Note $ "The right hand side has type" <+> pretty t2
   ]
 
+invalidGather 
+  :: MonadError TypeError m 
+  => SrcSpan -> Ty -> Ty -> m a 
+invalidGather loc t1 t2 = throwError $ Err 
+  Nothing 
+  "Invalid gather"
+  [(loc, Blank)] 
+  []
 
-nonHomogenousArrayLit' _tys = throwError $ Err
+nonHomogenousArrayLit _tys = throwError $ Err
   Nothing 
   "Nonhomogenous array literal"
   [] 
   [] 
 
-otherErr' txt = throwError $ Err 
+otherErr :: MonadError TypeError m => Text -> m a
+otherErr txt = throwError $ Err 
   Nothing 
   (pretty txt)
   []
   []
 
-data TypeError
+----- 
+
+data TypeError'
   = IncompatibleShapes Shape Shape
   | BadFunApp Text [Ty] FunctionTy
   | BadDistr Text [Ty] FunctionTy
-  | BadStmt Text TypeError
+  | BadStmt Text TypeError'
   | BinOpShapeErr BinOp Shape Shape
   | BinOpElTyErr BinOp ElTy ElTy
   | InvalidGather Ty Ty
@@ -187,7 +233,7 @@ data TypeError
   | UnBoundVarIdent Text [Text]
   | UnBoundCardIdent Card [Text]
   | NonHomogenousArrayLit [Ty]
-  | Blame SrcSpan TypeError
+  | Blame SrcSpan TypeError'
   | OtherErr Text
   deriving (Show)
 
@@ -197,7 +243,7 @@ blame loc x = catchError x $ \case
   Blame loc err -> throwError $ Blame loc err 
   err -> throwError $ Blame loc err
 
-blameStmt :: MonadError TypeError m => Text -> m a -> m a
+blameStmt :: MonadError TypeError' m => Text -> m a -> m a
 blameStmt name x = catchError x $ \err -> throwError (BadStmt name err)
 
 bad :: Doc AnsiStyle -> Doc AnsiStyle
@@ -234,7 +280,7 @@ prettyShapeError xs ys = (xs', ys')
         then (good $ pretty x, good $ pretty y)
         else (bad $ pretty x, bad $ pretty y)
 
-prettyError :: T.Text -> TypeError -> Doc AnsiStyle
+prettyError :: T.Text -> TypeError' -> Doc AnsiStyle
 prettyError _ (IncompatibleShapes sh1 sh2) =
   let (sh1', sh2') = prettyShapeError sh1 sh2
    in vsep
