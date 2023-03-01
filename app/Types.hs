@@ -126,8 +126,8 @@ broadcastsTo ty ty' = (el == el') && (shapeBroadcastsTo sh sh')
   where 
     sh  = shape ty
     el  = elTy ty
-    sh' = shape ty
-    el' = elTy ty
+    sh' = shape ty'
+    el' = elTy ty'
 
 shapeBroadcastsTo :: Shape -> Shape -> Bool
 shapeBroadcastsTo (MkShape sh) (MkShape sh')
