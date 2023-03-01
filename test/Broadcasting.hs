@@ -24,7 +24,7 @@ instance Arbitrary Ty where
     arbitrary = do 
       sh <- arbitrary 
       el <- elements [REAL, INT]
-      return $ Ty sh el
+      return $ Ty sh el Nothing
 
 
 check_broadcastsTo :: SpecWith ()
@@ -78,20 +78,20 @@ check_unify = describe "unification" $ do
   it "broadcasts over common prefix" $ do 
     property $ \prefix tys ty ->  
       let 
-        tys' = [ Ty (prefix <> sh) el | (Ty sh el) <- tys]
+        tys' = [ Ty (prefix <> sh) el pos | (Ty sh el pos) <- tys]
         fTy = FunctionTy ((\t -> ("", t)) <$> tys) ty 
-        ty' = let Ty sh el = ty in 
+        ty' = let Ty sh el _pos = ty in 
           if length tys > 0 
-          then Ty (prefix <> sh) el
-          else Ty sh el
+          then Ty (prefix <> sh) el _pos
+          else Ty sh el _pos
         prefix_ = if (shRank prefix > 0)  && (length tys > 0) then (Just prefix) else Nothing
       in (unify tys' fTy) `shouldBe` (Right (prefix_, ty')) 
 
   it "scalar function can take anything" $ do 
     property $ \ty ->  
       let 
-        Ty sh elt = ty 
-        scalarFn = FunctionTy [("x", Ty [] elt)] (Ty [] elt)
+        Ty sh elt _ = ty 
+        scalarFn = FunctionTy [("x", Ty [] elt Nothing)] (Ty [] elt Nothing)
       in (unify [ty] scalarFn) `shouldBe` (
         case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty))
       )
@@ -99,13 +99,22 @@ check_unify = describe "unification" $ do
   it "vecToScalar" $ do 
     property $ \ty card ->  
       let 
-        Ty sh elt = ty
-        ty' = Ty (sh <> [card]) elt 
-        funTy = FunctionTy [("x", Ty [CardBV "n"] elt)] (Ty [] elt)
+        Ty sh elt _pos = ty
+        ty' = Ty (sh <> [card]) elt _pos 
+        funTy = FunctionTy 
+          [("x", Ty [CardBV "n"] elt Nothing)] (Ty [] elt Nothing)
       in (unify [ty'] funTy) `shouldBe` (
         case sh of [] -> Right (Nothing, ty) ; _ -> (Right (Just sh, ty))
       )
 
+  it "rejects different length vectors" $ do 
+    property $ \n ->  
+      let 
+        ty  = Ty [CardBV $ T.pack n] REAL Nothing
+        ty' = Ty [CardBV $ "n" <> T.pack n] REAL Nothing
+      in (broadcastsTo ty ty') `shouldBe` (
+        False 
+      )
 
 -- check to see if vector functions can be applied to scalars
 -- sum(1.0) should fail

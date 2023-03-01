@@ -8,7 +8,7 @@ end
 
 fun foo(x : ['n]real, y : ['m]real) : ['n]real begin 
     let a : ['n]real = 1.0; 
-    let b : ['m]real = a + b;
+    let b : ['m]real = a;
     let c : ['n]real = hypot(a, 1.0); 
     ret c;
 end 
