@@ -22,12 +22,7 @@ import Prettyprinter
     vsep,
     (<+>),
   )
-import Prettyprinter.Render.Terminal
-  ( AnsiStyle,
-    Color (..),
-    bold,
-    color,
-  )
+
 -- import Text.Megaparsec.Pos (SourcePos (..), unPos)
 import Types
   ( Card (CardN),
@@ -40,30 +35,12 @@ import Types
   )
 import Control.Monad.Except
 
-import Error.Diagnose
+import Error.Diagnose hiding (pretty)
 import Util (SrcSpan)
 import Text.Megaparsec (SourcePos(..), unPos)
 import Data.Foldable (toList)
 
-
-{-
-incompatibleShapes =  IncompatibleShapes 
-badFunApp = BadFunApp 
-badDistr = BadDistr
-badStmt = BadStmt 
-binOpShapeErr = BinOpShapeErr
-binOpElTyErr = BinOpElTyErr 
-invalidGather = InvalidGather 
-expectedGot = ExpectedGot
-unBoundFunctionIdent = UnBoundFunctionIdent 
-unBoundDistIdent = UnBoundDistIdent
-unBoundVarIdent = UnBoundVarIdent
-unBoundCardIdent = UnBoundCardIdent
-nonHomogenousArrayLit = NonHomogenousArrayLit 
--- blame = Blame 
-otherErr = OtherErr 
--}
-type TypeError = Report (Doc AnsiStyle)
+type TypeError = Report T.Text
 
 badFunApp
   :: MonadError TypeError m 
@@ -72,18 +49,18 @@ badFunApp
   -> m a
 badFunApp fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err 
   Nothing 
-  ("Error in application of function" <+> pretty fname) 
+  ("Error in application of function" <> fname) 
   ((fnAppPos, This "Incorrect arguments given") : 
-    [ (pos, Where $ vsep
-        [ "in the argument" <+> emph (pretty x),
-          indent 2 "expected:" <+> (pretty expTy),
-          indent 2 "provided:" <+> (pretty gotTy)
+    [ (pos, Where $ T.unlines
+        [ "in the argument " <> x
+        , "  expected: " <> (T.pack $ show expTy)
+        , "  provided: " <> (T.pack $ show gotTy)
         ])
     | ((x, expTy), gotTy@(Ty _ _ (Just pos))) <- zip argTys given ])
-  [ Note $ vsep
-        [ "in the argument" <+> emph (pretty x),
-          indent 2 "expected:" <+> (pretty expTy),
-          indent 2 "provided:" <+> (pretty gotTy)
+  [ Note $ T.unlines
+        [ "in the argument " <> x
+        , "  expected: " <> (T.pack $ show expTy)
+        , "  provided: " <> (T.pack $ show gotTy)
         ]
     | ((x, expTy), gotTy@(Ty _ _ Nothing)) <- zip argTys given ]
 
@@ -95,18 +72,18 @@ badDistr
   -> m a
 badDistr fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err 
   Nothing 
-  ("Error in application of distribution" <+> pretty fname) 
+  ("Error in application of distribution" <> fname) 
   ((fnAppPos, This "Incorrect arguments given") : 
-    [ (pos, Where $ vsep
-        [ "in the argument" <+> emph (pretty x),
-          indent 2 "expected:" <+> (pretty expTy),
-          indent 2 "provided:" <+> (pretty gotTy)
+    [ (pos, Where $ T.unlines
+        [ "in the argument " <> x
+        , "  expected: " <> (T.pack $ show expTy)
+        , "  provided: " <> (T.pack $ show gotTy)
         ])
     | ((x, expTy), gotTy@(Ty _ _ (Just pos))) <- zip argTys given ])
-  [ Note $ vsep
-        [ "in the argument" <+> emph (pretty x),
-          indent 2 "expected:" <+> (pretty expTy),
-          indent 2 "provided:" <+> (pretty gotTy)
+  [ Note $ T.unlines 
+        [ "in the argument " <> x
+        , "  expected: " <> (T.pack $ show expTy)
+        , "  provided: " <> (T.pack $ show gotTy)
         ]
     | ((x, expTy), gotTy@(Ty _ _ Nothing)) <- zip argTys given ]
 
@@ -117,17 +94,15 @@ unBoundIdent
 unBoundIdent univ (Just pos) name potential = throwError $ Err 
   Nothing 
   ("Unknown identifier") 
-  [(pos, This $ "There is no known" <+> pretty univ <+> pretty name)]
+  [(pos, This $ "There is no known " <> univ <> " " <> name)]
   (Hint "Did you mean ... ?" : [
-    Hint . indent 2 . ("•" <+>) $ pretty suggestion
-    | suggestion <- toList potential
-  ])
+    Hint $ "  • " <> suggestion | suggestion <- toList potential])
 unBoundIdent univ Nothing name potential = throwError $ Err 
   Nothing 
-  ("There is no known" <+> pretty univ <+> pretty name)
+  ("There is no known " <> univ <> " " <> name)
   []
   (Hint "Did you mean ... ?" : [
-    Hint . indent 2 . ("•" <+>) $ pretty suggestion
+    Hint $ "  • " <> suggestion
     | suggestion <- toList potential
   ])
 
@@ -154,8 +129,9 @@ doesNotMatchDeclaredType
 doesNotMatchDeclaredType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2))  
   = throwError $ Err 
   Nothing 
-  ("The right hand side does not have the expected type" <+> pretty expTy)
-  [ (p2, Where $ "Has type" <+> pretty gotTy)
+  ("The right hand side does not have the expected type" 
+    <> (T.pack $ show expTy))
+  [ (p2, Where $ "Has type " <> (T.pack $ show gotTy))
   , (p1, Where $ "Was expecting something of this type") ]
   []
 
@@ -165,8 +141,9 @@ doesNotMatchReturnType
 doesNotMatchReturnType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2))  
   = throwError $ Err 
   Nothing 
-  ("The function body does not return the correct type" <+> pretty expTy)
-  [ (p2, Where $ "Has type" <+> pretty gotTy)
+  ("The function body does not return the correct type" 
+    <> (T.pack $ show expTy))
+  [ (p2, Where $ "Has type" <> (T.pack $ show gotTy))
   , (p1, Where $ "Was expecting something of this type") ]
   []
 
@@ -177,22 +154,22 @@ binOpErr
 binOpErr op pos t1@(Ty _ _ (Just pos1)) t2@(Ty _ _ (Just pos2)) 
   = throwError $ Err 
   Nothing 
-  ("Cannot apply" <+> (pretty $ show op) <+> "to the given arguments")
-  [ (pos, This $ "operation" <+> (pretty $ show op) <+>
-      "expects broadcastable arguments")
-  , (pos1, Where $ "The left hand side has type" <+> pretty t1)
-  , (pos2, Where $ "The right hand side has type" <+> pretty t2)
+  ("Cannot apply " <> (T.pack $ show op) <> " to the given arguments")
+  [ (pos, This $ "operation " <> (T.pack $ show op) <>
+      " expects broadcastable arguments")
+  , (pos1, Where $ "The left hand side has type " <> (T.pack $ show t1))
+  , (pos2, Where $ "The right hand side has type " <> (T.pack $ show t2))
   ] 
   []
 binOpErr op pos t1 t2 
   = throwError $ Err 
   Nothing 
-  ("Cannot apply" <+> (pretty $ show op) <+> "to the given arguments")
-  [ (pos, This $ "operation"<+> (pretty $ show op) <+>
-      "expects broadcastable arguments")
+  ("Cannot apply " <> (T.pack $ show op) <> " to the given arguments")
+  [ (pos, This $ "operation "<> (T.pack $ show op) <>
+      " expects broadcastable arguments")
   ] 
-  [ Note $ "The left hand side has type" <+> pretty t1
-  , Note $ "The right hand side has type" <+> pretty t2
+  [ Note $ "The left hand side has type " <> (T.pack $ show t1)
+  , Note $ "The right hand side has type " <> (T.pack $ show t2)
   ]
 
 invalidGather 
@@ -213,12 +190,12 @@ nonHomogenousArrayLit _tys = throwError $ Err
 otherErr :: MonadError TypeError m => Text -> m a
 otherErr txt = throwError $ Err 
   Nothing 
-  (pretty txt)
+  txt
   []
   []
 
 ----- 
-
+{-
 data TypeError'
   = IncompatibleShapes Shape Shape
   | BadFunApp Text [Ty] FunctionTy
@@ -421,3 +398,4 @@ prettySrc src (Position (l,l') (c, c') fname) =
     line_width = (+ 1) . length . show $ l
     pointer = indent (c - 1) (bad . pretty $ T.replicate (c' - c) "^")
     srcLine = pretty $ T.lines src !! (l - 1)
+-}

@@ -6,7 +6,7 @@
 {-# LANGUAGE EmptyCase #-}
 
 
-module Analysis (prettyError, checkModel, buildCtx, Ctx, ctxFromSigs, checkFunDef, checkLib) where
+module Analysis (checkModel, buildCtx, Ctx, ctxFromSigs, checkFunDef, checkLib) where
 
 import AST
   ( Distribution (..),

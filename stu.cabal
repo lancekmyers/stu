@@ -19,6 +19,8 @@ maintainer:         lancekmyers@gmail.com
 -- A copyright notice.
 -- copyright:
 -- category:
+
+
 extra-source-files: CHANGELOG.md
 data-files: lib/std.stu
 library 
@@ -35,8 +37,8 @@ library
         Parser.Util, Parser.Signature, Parser.Bijectors,
         Parser.DistDef, Parser.FunDef, 
         Util
-
     -- other-extensions:
+    
     build-depends:
         base ^>=4.16.1.0,
         megaparsec == 9.2.*,
