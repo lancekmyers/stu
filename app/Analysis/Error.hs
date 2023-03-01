@@ -88,6 +88,11 @@ badDistr fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err
     | ((x, expTy), gotTy@(Ty _ _ Nothing)) <- zip argTys given ]
 
 
+showSuggestions suggs = [
+    Hint $ "Did you mean one of the following?\n" <> 
+      T.unlines [ "  - " <> sugg | sugg <- take 4 $ toList suggs ]
+  ] 
+
 unBoundIdent 
   :: (MonadError TypeError m, Foldable f)
   => Text -> Maybe SrcSpan -> Text -> f Text -> m a
@@ -95,16 +100,12 @@ unBoundIdent univ (Just pos) name potential = throwError $ Err
   Nothing 
   ("Unknown identifier") 
   [(pos, This $ "There is no known " <> univ <> " " <> name)]
-  (Hint "Did you mean ... ?" : [
-    Hint $ "  • " <> suggestion | suggestion <- toList potential])
+  (showSuggestions potential)
 unBoundIdent univ Nothing name potential = throwError $ Err 
   Nothing 
   ("There is no known " <> univ <> " " <> name)
   []
-  (Hint "Did you mean ... ?" : [
-    Hint $ "  • " <> suggestion
-    | suggestion <- toList potential
-  ])
+  (showSuggestions potential)
 
 unBoundFunctionIdent 
   :: (MonadError TypeError m, Foldable f)
@@ -143,7 +144,7 @@ doesNotMatchReturnType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2))
   Nothing 
   ("The function body does not return the correct type" 
     <> (T.pack $ show expTy))
-  [ (p2, Where $ "Has type" <> (T.pack $ show gotTy))
+  [ (p2, Where $ "Returns " <> (T.pack $ show gotTy))
   , (p1, Where $ "Was expecting something of this type") ]
   []
 

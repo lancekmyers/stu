@@ -71,7 +71,7 @@ checkFunBody (LetPrimIn name ty (PrimApp fprim args) rest) =
 checkFunBody (FunLetIn name ty val rest) 
   = local (insertTy name Local ty) $ do
   validateType ty
-  val' <- inferTy val
+  val' <- inferTy val 
   let ty' = cofreeHead val'
   when (not $ ty' `broadcastsTo` ty) $ doesNotMatchDeclaredType ty ty'
   (retTy, rest') <- checkFunBody rest

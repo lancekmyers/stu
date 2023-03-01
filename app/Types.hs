@@ -49,7 +49,9 @@ prettyShape :: Shape -> Doc ann
 prettyShape sh = tupled . fmap viaShow $ V.toList (getVec sh)
 
 data Ty = Ty Shape ElTy (Maybe SrcSpan)
-  deriving Eq
+
+instance Eq Ty where 
+  (Ty sh el _) == (Ty sh' el' _) = (sh == sh') && (el == el')
 
 shape :: Ty -> Shape 
 shape (Ty sh _ _) = sh 
