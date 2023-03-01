@@ -58,7 +58,7 @@ lookupVar loc name = do
   varCtx <- asks vars
   case M.lookup name varCtx of 
     Nothing -> unBoundVarIdent loc name $ M.keys varCtx
-    Just (ty, _vd) -> return ty
+    Just (Ty sh el _, _vd) -> return $ Ty sh el loc
 
 lookupFun ::
   (MonadTyCtx m) =>
@@ -164,7 +164,7 @@ validateType :: forall m. MonadTyCtx m => Ty -> m ()
 validateType ty@(Ty _ _ (Just loc)) = do
   ctxCards <- asks knownCards
   let cards = getVec . shape $ ty 
-  let isLitInt = \(CardN _) -> True
+  let isLitInt = \case {CardN _ -> True; _ -> False }
   let unknownCards = V.filter (not . (`S.member` ctxCards)) cards
   case filter (not . isLitInt) $ V.toList unknownCards of 
     [] -> pure ()
