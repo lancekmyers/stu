@@ -49,7 +49,7 @@ badFunApp
   -> m a
 badFunApp fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err 
   Nothing 
-  ("Error in application of function" <> fname) 
+  ("Error in application of function " <> fname) 
   ((fnAppPos, This "Incorrect arguments given") : 
     [ (pos, Where $ T.unlines
         [ "in the argument " <> x
@@ -57,12 +57,8 @@ badFunApp fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err
         , "  provided: " <> (T.pack $ show gotTy)
         ])
     | ((x, expTy), gotTy@(Ty _ _ (Just pos))) <- zip argTys given ])
-  [ Note $ T.unlines
-        [ "in the argument " <> x
-        , "  expected: " <> (T.pack $ show expTy)
-        , "  provided: " <> (T.pack $ show gotTy)
-        ]
-    | ((x, expTy), gotTy@(Ty _ _ Nothing)) <- zip argTys given ]
+  [ Note $ "The function " <> fname <> " expects to be called like\n" <>
+    fname <> (T.pack $ show fty) ]
 
 
 badDistr
@@ -72,7 +68,7 @@ badDistr
   -> m a
 badDistr fname fnAppPos given fty@(FunctionTy argTys _) = throwError $ Err 
   Nothing 
-  ("Error in application of distribution" <> fname) 
+  ("Error in application of distribution " <> fname) 
   ((fnAppPos, This "Incorrect arguments given") : 
     [ (pos, Where $ T.unlines
         [ "in the argument " <> x
@@ -99,8 +95,11 @@ unBoundIdent
 unBoundIdent univ (Just pos) name potential = throwError $ Err 
   Nothing 
   ("Unknown identifier") 
-  [(pos, This $ "There is no known " <> univ <> " " <> name)]
+  [(pos', This $ "There is no known " <> univ <> " " <> name)]
   (showSuggestions potential)
+  where 
+    Position (l,c) _ fname = pos
+    pos' = Position (l, c) (l, c + T.length name) fname
 unBoundIdent univ Nothing name potential = throwError $ Err 
   Nothing 
   ("There is no known " <> univ <> " " <> name)

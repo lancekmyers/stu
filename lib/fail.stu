@@ -1,5 +1,14 @@
+fun hypot(x : []real, y : []real) : []real begin 
+    let x2 : []real = x * x;
+    let y2 : []real = y * y;
+    %let r : []real = %sqrt(x2 + y2); 
+    ret r;
+end 
+
+
 fun foo(x : ['n]real, y : ['m]real) : ['n]real begin 
     let a : ['n]real = 1.0; 
-    let b : ['m]real = y;
+    let b : ['m]real = a + b;
+    let c : ['n]real = hypot(a, 1.0); 
     ret c;
 end 
