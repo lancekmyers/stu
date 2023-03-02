@@ -17,7 +17,6 @@ import Analysis.Expr (inferTy)
 import Control.Comonad.Identity (Identity (..))
 import Control.Comonad.Trans.Cofree (Cofree, headF)
 import Control.Monad (forM_, when)
-import Control.Monad.Except (MonadError (..))
 import Control.Monad.Reader (ReaderT (runReaderT), runReader)
 import Control.Monad.Reader.Class (MonadReader (ask, local))
 import Control.Monad.State.Strict (MonadState (get))
@@ -27,12 +26,13 @@ import qualified Data.Map.Strict as M
 import Types (FunctionTy (FunctionTy), Ty, broadcastsTo)
 import Debug.Trace (trace)
 import Util (SrcSpan)
+import Control.Monad.Validate (MonadValidate)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
 
-checkFunDefs :: forall m. (MonadError TypeError m, MonadState Ctx m) => [FunDef SrcSpan] -> m [FunDef Ty]
+checkFunDefs :: forall m. (MonadValidate TypeError m, MonadState Ctx m) => [FunDef SrcSpan] -> m [FunDef Ty]
 checkFunDefs funs = mapM go funs
   where
     go :: FunDef SrcSpan -> m (FunDef Ty)

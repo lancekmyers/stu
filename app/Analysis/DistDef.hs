@@ -19,7 +19,6 @@ import Analysis.FunDef (checkFunDefs, checkFunDef)
 import Control.Comonad.Identity (Identity (runIdentity))
 import Control.Comonad.Trans.Cofree (Cofree, headF)
 import Control.Monad (when)
-import Control.Monad.Except (MonadError (..))
 import Data.Functor.Compose (Compose (getCompose))
 import Data.Functor.Foldable (Recursive (project))
 import qualified Data.Set as S 
@@ -30,11 +29,12 @@ import Control.Monad.State.Strict (MonadState (get))
 import Analysis.Context (Ctx)
 import Control.Monad.Reader (runReaderT, MonadReader (ask))
 import Util (SrcSpan)
+import Control.Monad.Validate (MonadValidate)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
-checkDistDefs :: forall m. (MonadError TypeError m, MonadState Ctx m) => [DistDef SrcSpan] -> m [DistDef Ty]
+checkDistDefs :: forall m. (MonadValidate TypeError m, MonadState Ctx m) => [DistDef SrcSpan] -> m [DistDef Ty]
 checkDistDefs dists = traverse go dists
   where
     go :: DistDef SrcSpan -> m (DistDef Ty)

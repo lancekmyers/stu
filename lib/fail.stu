@@ -5,10 +5,13 @@ fun hypot(x : []real, y : []real) : []real begin
     ret r;
 end 
 
-
 fun foo(x : ['n]real, y : ['m]real) : ['n]real begin 
     let a : ['n]real = 1.0; 
     let b : ['m]real = a;
     let c : ['n]real = hypot(a, 1.0); 
     ret c;
 end 
+
+fun bar(x: ['n]real) : ['m] real begin 
+    ret x + a;
+end

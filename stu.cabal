@@ -59,7 +59,8 @@ library
         optparse-applicative == 0.17.*, 
         comonad == 5.*, 
         data-fix == 0.3.*, 
-        diagnose == 2.4.*
+        diagnose == 2.4.*, 
+        monad-validate
 
     hs-source-dirs:   app
     default-language: Haskell2010
@@ -107,6 +108,7 @@ executable stu
         optparse-applicative == 0.17.*, 
         comonad == 5.*,
         diagnose, 
+        monad-validate,
         stu
 
 

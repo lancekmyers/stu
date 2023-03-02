@@ -35,9 +35,7 @@ import Util (SrcSpan, joinSrcSpan)
 
 inferTy ::
   forall m.
-  ( MonadTyCtx m,
-    MonadError TypeError m
-  ) =>
+  ( MonadTyCtx m ) =>
   Cofree ExprF SrcSpan ->
   m (Cofree ExprF Ty)
 inferTy = para (go . runIdentity . getCompose)

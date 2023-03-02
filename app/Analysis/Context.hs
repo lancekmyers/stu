@@ -11,6 +11,7 @@ import AST (Bijector, Decl (..), ExprF (VarF), VarDomain (..))
 import Analysis.Error 
 import Control.Monad.Except (MonadError (throwError), guard)
 import Control.Monad.State.Strict (MonadState (get, put), gets)
+import Control.Monad.Validate 
 import Data.Either (lefts, rights)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
@@ -46,7 +47,7 @@ instance Semigroup Ctx where
 instance Monoid Ctx where
   mempty = Ctx mempty mempty mempty mempty
 
-type MonadTyCtx m = (MonadReader Ctx m, MonadError TypeError m)
+type MonadTyCtx m = (MonadReader Ctx m, MonadValidate TypeError m)
 
 
 lookupVar ::

@@ -34,7 +34,6 @@ import Analysis.FunDef (checkFunDef, checkFunDefs)
 import Control.Comonad.Identity (Identity (..))
 import Control.Comonad.Trans.Cofree (Cofree, headF)
 import Control.Monad (forM, when)
-import Control.Monad.Except (MonadError (..))
 import Control.Monad.Reader (MonadReader(local), ReaderT (runReaderT))
 import Data.Functor.Compose (Compose (..))
 import Data.Functor.Foldable (Recursive (project))
@@ -43,6 +42,7 @@ import Types (Ty, shape, broadcastsTo, shDiff)
 import Control.Monad.State.Strict (MonadState (get), modify)
 import Debug.Trace (trace)
 import Util (SrcSpan)
+import Control.Monad.Validate (MonadValidate)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
@@ -83,7 +83,7 @@ checkModelStmt (ObsStmt name dist) = do
 
 checkModel ::
   forall m.
-  (MonadState Ctx m, MonadError TypeError m) =>
+  (MonadState Ctx m, MonadValidate TypeError m) =>
   Model SrcSpan ->
   m (Model Ty)
 checkModel (Model stmts) = Model <$> traverse go stmts 
@@ -100,7 +100,7 @@ allSame xs = and $ zipWith (==) xs (tail xs)
 
 checkLib ::
   forall m.
-  (MonadState Ctx m, MonadError TypeError m) =>
+  (MonadState Ctx m, MonadValidate TypeError m) =>
   Library SrcSpan ->
   m (Library Ty)
 checkLib (Library funs dists) = do

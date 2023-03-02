@@ -8,6 +8,7 @@ module Analysis.Error where
 
 import AST (BinOp)
 import Control.Monad.Except ( MonadError(throwError) )
+import Control.Monad.Validate (MonadValidate(..), refute, dispute)
 import Data.Foldable (toList)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -37,17 +38,20 @@ import Types
   )
 import Util (SrcSpan)
 
-type TypeError = Report T.Text
+type TypeError = Diagnostic T.Text
+
+mkDiagnostic :: Report msg -> Diagnostic msg
+mkDiagnostic = addReport def 
 
 badFunApp ::
-  MonadError TypeError m =>
+  MonadValidate TypeError m =>
   Text ->
   SrcSpan ->
   [Ty] ->
   FunctionTy ->
   m a
 badFunApp fname fnAppPos given fty@(FunctionTy argTys _) =
-  throwError $
+  refute . mkDiagnostic $ 
     Err
       Nothing
       ("Error in application of function " <> fname)
@@ -70,14 +74,14 @@ badFunApp fname fnAppPos given fty@(FunctionTy argTys _) =
       ]
 
 badDistr ::
-  MonadError TypeError m =>
+  MonadValidate TypeError m =>
   Text ->
   SrcSpan ->
   [Ty] ->
   FunctionTy ->
   m a
 badDistr dname fnAppPos given fty@(FunctionTy argTys _) =
-  throwError $
+  refute . mkDiagnostic $
     Err
       Nothing
       ("Error in application of distribution " <> dname)
@@ -106,14 +110,14 @@ showSuggestions suggs =
   ]
 
 unBoundIdent ::
-  (MonadError TypeError m, Foldable f) =>
+  (MonadValidate TypeError m, Foldable f) =>
   Text ->
   Maybe SrcSpan ->
   Text ->
   f Text ->
   m a
 unBoundIdent univ (Just pos) name potential =
-  throwError $
+  refute . mkDiagnostic $
     Err
       Nothing
       ("Unknown identifier")
@@ -123,7 +127,7 @@ unBoundIdent univ (Just pos) name potential =
     Position (l, c) _ fname = pos
     pos' = Position (l, c) (l, c + T.length name) fname
 unBoundIdent univ Nothing name potential =
-  throwError $
+  refute . mkDiagnostic $
     Err
       Nothing
       ("There is no known " <> univ <> " " <> name)
@@ -131,7 +135,7 @@ unBoundIdent univ Nothing name potential =
       (showSuggestions potential)
 
 unBoundFunctionIdent ::
-  (MonadError TypeError m, Foldable f) =>
+  (MonadValidate TypeError m, Foldable f) =>
   Maybe SrcSpan ->
   Text ->
   f Text ->
@@ -139,7 +143,7 @@ unBoundFunctionIdent ::
 unBoundFunctionIdent = unBoundIdent "function"
 
 unBoundDistIdent ::
-  (MonadError TypeError m, Foldable f) =>
+  (MonadValidate TypeError m, Foldable f) =>
   Maybe SrcSpan ->
   Text ->
   f Text ->
@@ -147,7 +151,7 @@ unBoundDistIdent ::
 unBoundDistIdent = unBoundIdent "distribution"
 
 unBoundCardIdent ::
-  (MonadError TypeError m, Foldable f) =>
+  (MonadValidate TypeError m, Foldable f) =>
   Maybe SrcSpan ->
   Text ->
   f Text ->
@@ -155,7 +159,7 @@ unBoundCardIdent ::
 unBoundCardIdent = unBoundIdent "cardinality"
 
 unBoundVarIdent ::
-  (MonadError TypeError m, Foldable f) =>
+  (MonadValidate TypeError m, Foldable f) =>
   Maybe SrcSpan ->
   Text ->
   f Text ->
@@ -163,12 +167,12 @@ unBoundVarIdent ::
 unBoundVarIdent = unBoundIdent "variable"
 
 doesNotMatchDeclaredType ::
-  MonadError TypeError m =>
+  MonadValidate TypeError m =>
   Ty ->
   Ty ->
   m a
 doesNotMatchDeclaredType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2)) =
-  throwError $
+  refute . mkDiagnostic $
     Err
       Nothing
       ( "The right hand side does not have the expected type "
@@ -180,12 +184,12 @@ doesNotMatchDeclaredType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2)) =
       []
 
 doesNotMatchReturnType ::
-  MonadError TypeError m =>
+  MonadValidate TypeError m =>
   Ty ->
   Ty ->
   m a
 doesNotMatchReturnType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2)) =
-  throwError $
+  refute . mkDiagnostic $
     Err
       Nothing
       ( "The function body does not return the correct type "
@@ -197,14 +201,14 @@ doesNotMatchReturnType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2)) =
       []
 
 binOpErr ::
-  MonadError TypeError m =>
+  MonadValidate TypeError m =>
   BinOp ->
   SrcSpan ->
   Ty ->
   Ty ->
   m a
 binOpErr op pos t1@(Ty _ _ (Just pos1)) t2@(Ty _ _ (Just pos2)) =
-  throwError $
+  refute . mkDiagnostic $
     Err
       Nothing
       ("Cannot apply " <> (T.pack $ show op) <> " to the given arguments")
@@ -218,7 +222,7 @@ binOpErr op pos t1@(Ty _ _ (Just pos1)) t2@(Ty _ _ (Just pos2)) =
       ]
       []
 binOpErr op pos t1 t2 =
-  throwError $
+  refute . mkDiagnostic $
     Err
       Nothing
       ("Cannot apply " <> (T.pack $ show op) <> " to the given arguments")
@@ -233,30 +237,31 @@ binOpErr op pos t1 t2 =
       ]
 
 invalidGather ::
-  MonadError TypeError m =>
+  MonadValidate TypeError m =>
   SrcSpan ->
   Ty ->
   Ty ->
   m a
 invalidGather loc t1 t2 =
-  throwError $
+  refute . mkDiagnostic $
     Err
       Nothing
       "Invalid gather"
       [(loc, Blank)]
       []
 
+nonHomogenousArrayLit :: (MonadValidate TypeError m) => a -> m b
 nonHomogenousArrayLit _tys =
-  throwError $
+  refute . mkDiagnostic $
     Err
       Nothing
       "Nonhomogenous array literal"
       []
       []
 
-otherErr :: MonadError TypeError m => Text -> m a
+otherErr :: MonadValidate TypeError m => Text -> m a
 otherErr txt =
-  throwError $
+  refute . mkDiagnostic $
     Err
       Nothing
       txt

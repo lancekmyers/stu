@@ -77,6 +77,7 @@ import Paths_stu
 import Util (SrcSpan)
 import Error.Diagnose
 import Error.Diagnose.Compat.Megaparsec
+import Control.Monad.Validate (validateToErrorWith, ValidateT)
 
 
 data Options
@@ -154,13 +155,13 @@ parseSig fname = do
 
 checkProgram
   :: Monad m 
-  =>  Ctx -> Program SrcSpan -> ExceptT TypeError m (Program Ty, Ctx)
+  =>  Ctx -> Program SrcSpan -> ValidateT TypeError m (Program Ty, Ctx)
 checkProgram ctx_std (Program decls model) = do
   let ctx = ctx_std <> buildCtx decls
   (model, ctx') <- runStateT (checkModel model) ctx
   return $ (Program decls model, ctx)
 
-checkLibrary :: Monad m => Library SrcSpan -> ExceptT TypeError m (Library Ty, Ctx)
+checkLibrary :: Monad m => Library SrcSpan -> ValidateT TypeError m (Library Ty, Ctx)
 checkLibrary lib = do
   (lib', ctx') <- runStateT (checkLib lib) mempty
   return $ (lib', ctx')
@@ -187,13 +188,16 @@ validateFileNames (inFileName, outFileName)
 
   return (fname, out_fname)
 
+--handleTypeError 
+--  :: FilePath -> ValidateT (Diagnostic Text) IO a
+--  -> ExceptT (Diagnostic Text) IO a 
 handleTypeError 
-  :: FilePath -> ExceptT TypeError IO a
-  -> ExceptT (Diagnostic Text) IO a 
+  :: (MonadIO m, MonadError (Diagnostic msg) m) 
+  => FilePath -> ValidateT (Diagnostic msg) m b -> m b
 handleTypeError fname x = do 
   contents <- liftIO $ readFile fname 
-  let go = addReport (addFile def fname contents)
-  withExceptT go x 
+  let go diag = addFile diag fname contents
+  validateToErrorWith go x
 
 main' :: Options -> ExceptT (Diagnostic Text) IO ()
 main' (BuildOptions inFileName outFileName) = do
