@@ -171,7 +171,7 @@ doesNotMatchDeclaredType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2)) =
   throwError $
     Err
       Nothing
-      ( "The right hand side does not have the expected type"
+      ( "The right hand side does not have the expected type "
           <> (T.pack $ show expTy)
       )
       [ (p2, Where $ "Has type " <> (T.pack $ show gotTy)),
@@ -188,7 +188,7 @@ doesNotMatchReturnType expTy@(Ty _ _ (Just p1)) gotTy@(Ty _ _ (Just p2)) =
   throwError $
     Err
       Nothing
-      ( "The function body does not return the correct type"
+      ( "The function body does not return the correct type "
           <> (T.pack $ show expTy)
       )
       [ (p2, Where $ "Returns " <> (T.pack $ show gotTy)),
