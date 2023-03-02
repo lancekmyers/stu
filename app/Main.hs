@@ -56,7 +56,7 @@ import Options.Applicative
     short,
     str,
     strOption,
-    subparser,
+    subparser
   )
 import Parser (parseLibrary, parseProgram, parseSignatures)
 import Prettyprinter
@@ -78,6 +78,7 @@ import Util (SrcSpan)
 import Error.Diagnose
 import Error.Diagnose.Compat.Megaparsec
 import Control.Monad.Validate (validateToErrorWith, ValidateT)
+import System.IO (hIsTerminalDevice, stdin)
 
 
 data Options
@@ -252,13 +253,14 @@ instance Pretty (Doc a) where
   pretty = id
   -}
 main :: IO ()
-main = mainHandled =<< execParser opts
+main = do 
+  isTTY <- hIsTerminalDevice stdin
+  given_options <- execParser opts
+  runExceptT (main' given_options) >>= \case
+    Left err -> error_printer isTTY err
+    Right foo -> return ()
   where
-    error_printer = printDiagnostic stdout True True 2 defaultStyle
-    mainHandled opts =
-      runExceptT (main' opts) >>= \case
-        Left err -> error_printer err
-        Right foo -> return ()
+    error_printer ispretty = printDiagnostic stdout ispretty ispretty 2 defaultStyle   
     opts =
       info
         (options <**> helper)
