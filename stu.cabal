@@ -19,6 +19,8 @@ maintainer:         lancekmyers@gmail.com
 -- A copyright notice.
 -- copyright:
 -- category:
+
+
 extra-source-files: CHANGELOG.md
 data-files: lib/std.stu
 library 
@@ -33,9 +35,10 @@ library
         Analysis.Expr, Analysis.Distribution, Analysis.FunDef, Analysis.DistDef,
         Parser, Parser.Types, Parser.Expr, Parser.Distribution,
         Parser.Util, Parser.Signature, Parser.Bijectors,
-        Parser.DistDef, Parser.FunDef
-
+        Parser.DistDef, Parser.FunDef, 
+        Util
     -- other-extensions:
+    
     build-depends:
         base ^>=4.16.1.0,
         megaparsec == 9.2.*,
@@ -52,11 +55,12 @@ library
         fsnotify == 0.3.*, 
         filepath >= 1.3, 
         directory >=1.2.7,
-        free == 5.*,
-        repa == 3.4.*, 
+        free == 5.*, 
         optparse-applicative == 0.17.*, 
         comonad == 5.*, 
-        data-fix == 0.3.*
+        data-fix == 0.3.*, 
+        diagnose == 2.4.*, 
+        monad-validate
 
     hs-source-dirs:   app
     default-language: Haskell2010
@@ -78,6 +82,7 @@ executable stu
         Parser, Parser.Types, Parser.Expr, Parser.Distribution,
         Parser.Util, Parser.Signature, Parser.Bijectors,
         Parser.DistDef, Parser.FunDef, 
+        Util,
         Paths_stu
 
 
@@ -100,9 +105,10 @@ executable stu
         filepath >= 1.3, 
         directory >=1.2.7,
         free == 5.*,
-        repa == 3.4.*, 
         optparse-applicative == 0.17.*, 
         comonad == 5.*,
+        diagnose, 
+        monad-validate,
         stu
 
 

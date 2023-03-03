@@ -3,6 +3,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Types where
 
@@ -18,6 +21,7 @@ import qualified Data.Vector as V
 import GHC.Exts (IsList (..))
 import Prettyprinter
 import GHC.Exts (IsList (..))
+import Util (SrcSpan)
 
 data ElTy
   = REAL
@@ -44,11 +48,19 @@ instance IsList Shape where
 prettyShape :: Shape -> Doc ann
 prettyShape sh = tupled . fmap viaShow $ V.toList (getVec sh)
 
-data Ty = Ty {shape :: Shape, elTy :: ElTy}
-  deriving (Eq)
+data Ty = Ty Shape ElTy (Maybe SrcSpan)
+
+instance Eq Ty where 
+  (Ty sh el _) == (Ty sh' el' _) = (sh == sh') && (el == el')
+
+shape :: Ty -> Shape 
+shape (Ty sh _ _) = sh 
+
+elTy :: Ty -> ElTy 
+elTy (Ty _ et _) = et 
 
 rank :: Ty -> Int
-rank (Ty sh _) = length (getVec sh)
+rank (Ty sh _ _) = length (getVec sh)
 
 shRank :: Shape -> Int
 shRank = V.length . getVec
@@ -76,7 +88,7 @@ shToList = V.toList . getVec
 instance Pretty Ty where pretty = viaShow
 
 instance Show Ty where
-  show (Ty sh el) = show sh <> show el
+  show ty = show (shape ty) <> show (elTy ty)
 
 data Card
   = CardN Int
@@ -110,7 +122,12 @@ broadcast (MkShape xs) (MkShape ys) = MkShape . mappend prefix <$> zs
 
 -- | Does sh broadcast to sh'?
 broadcastsTo :: Ty -> Ty -> Bool
-broadcastsTo (Ty sh el) (Ty sh' el') = (el == el') && (shapeBroadcastsTo sh sh')
+broadcastsTo ty ty' = (el == el') && (shapeBroadcastsTo sh sh')
+  where 
+    sh  = shape ty
+    el  = elTy ty
+    sh' = shape ty'
+    el' = elTy ty'
 
 shapeBroadcastsTo :: Shape -> Shape -> Bool
 shapeBroadcastsTo (MkShape sh) (MkShape sh')
@@ -129,8 +146,8 @@ shDiff (MkShape sh') (MkShape sh) =
     n = abs $ V.length sh - V.length sh'
     prefix = V.take n larger
 
-data FunctionTy
-  = FunctionTy [(Text, Ty)] Ty
+data FunctionTy 
+  = FunctionTy [(Text, Ty)] (Ty)
 
 instance Show FunctionTy where
   show (FunctionTy args ret) = "(" ++ args_shown ++ ") -> " ++ (show ret)
@@ -175,8 +192,8 @@ go (x, y)
   | x == y = pure ()
   | otherwise = throwError (TyErr "unequal")
 
-substitute :: CardMap -> Ty -> Ty
-substitute cmap (Ty sh elty) = Ty (MkShape sh') elty
+substitute :: CardMap -> Ty -> Ty 
+substitute cmap (Ty sh elty _) = Ty (MkShape sh') elty Nothing
   where
     sh' = substGo <$> (getVec sh)
     substGo (CardBV i) = cmap M.! i
@@ -219,13 +236,13 @@ unify tys (FunctionTy args ret) = do
     sh : _ -> (_, Ty (sh <> ret_sh) ret_el)
     [] -> (_, Ty ret_sh ret_el)
   -}
-  let Ty ret_sh ret_el = substitute cmap ret
+  let (Ty ret_sh ret_el _) = substitute cmap ret
   let br_sh =
         if shRank longest_prefix > 0
           then Just longest_prefix
           else Nothing
 
-  return (br_sh, Ty (longest_prefix <> ret_sh) ret_el)
+  return (br_sh, Ty (longest_prefix <> ret_sh) ret_el Nothing)
 
 real = Ty mempty REAL
 

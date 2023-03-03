@@ -27,34 +27,30 @@ import Text.Megaparsec
     getSourcePos,
     sepBy,
   )
+import Util (mkPos)
+
+withLoc parser = do 
+  from <- getSourcePos 
+  x <- parser 
+  to <- getSourcePos 
+  return . cofree $ (mkPos from to) :< x  
+
 
 pVariable :: Parser ExprSrc
-pVariable = do
-  position <- getSourcePos
-  ident <- lexeme pIdent
-  return . cofree $ position :< VarF ident Unknown
+pVariable = withLoc $ VarF <$> (lexeme pIdent) <*> (pure Unknown)
+
 
 pLitInt :: Parser ExprSrc
-pLitInt = do
-  pos <- getSourcePos
-  int <- signedInteger
-  let litInt = LitInt . fromInteger $ int
-  return . cofree $ pos :< litInt
+pLitInt = withLoc $ LitInt . fromInteger <$> signedInteger
+
 
 pLitReal :: Parser ExprSrc
-pLitReal = do
-
-  pos <- getSourcePos
-  lit <- LitReal <$> signedFloat
-  return . cofree $ pos :< lit
+pLitReal = withLoc $ LitReal <$> signedFloat
 
 pLitArray :: Parser ExprSrc
-pLitArray = do
-  pos <- getSourcePos
-  litArr <-
-    between (symbol "[") (symbol "]") $
-      LitArray <$> sepBy pExpr (symbol ",")
-  return . cofree $ pos :< litArr
+pLitArray = withLoc $ 
+  between (symbol "[") (symbol "]")
+      (LitArray <$> sepBy pExpr (symbol ","))
 
 pLit :: Parser (ExprSrc)
 pLit =
@@ -79,23 +75,27 @@ pExpr = makeExprParser pTerm operatorTable
 
 pAdd = do
   loc <- getSourcePos
-  star <- symbol "+"
-  return $ \x y -> cofree $ loc :< ArithF Add x y
+  symbol "+"
+  loc' <- getSourcePos
+  return $ \x y -> cofree $ (mkPos loc loc') :< ArithF Add x y
 
 pMul = do
   loc <- getSourcePos
-  star <- symbol "*"
-  return $ \x y -> cofree $ loc :< ArithF Mul x y
+  symbol "*"
+  loc' <- getSourcePos
+  return $ \x y -> cofree $ (mkPos loc loc') :< ArithF Mul x y
 
 pDiv = do
   loc <- getSourcePos
-  star <- symbol "/"
-  return $ \x y -> cofree $ loc :< ArithF Div x y
+  symbol "/"
+  loc' <- getSourcePos
+  return $ \x y -> cofree $ (mkPos loc loc') :< ArithF Div x y
 
 pSub = do
   loc <- getSourcePos
   star <- symbol "-"
-  return $ \x y -> cofree $ loc :< ArithF Sub x y
+  loc' <- getSourcePos
+  return $ \x y -> cofree $ (mkPos loc loc') :< ArithF Sub x y
 
 
 operatorTable :: [[Operator Parser ExprSrc]]
@@ -110,11 +110,12 @@ operatorTable =
 
 pApp :: Parser ExprSrc
 pApp = do
-  loc <- getSourcePos
+  from <- getSourcePos
   funcName <- pIdent
   args <- parens $ pExpr `sepBy` symbol ","
+  to <- getSourcePos  
   case funcName of
     "gather" -> case args of
-      [xs, is] -> return . cofree $ loc :< GatherF xs is
+      [xs, is] -> return . cofree $ (mkPos from to) :< GatherF xs is
       _ -> fail "gather expects 2 arguments"
-    _ -> return . cofree $ loc :< FunAppF funcName args
+    _ -> return . cofree $ (mkPos from to) :< FunAppF funcName args

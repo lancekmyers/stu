@@ -20,12 +20,12 @@ import Parser.Types (pTy)
 import Parser.Util (Parser, lexeme, pIdent, pIdentUpper, symbol)
 import Text.Megaparsec
   ( MonadParsec (eof),
-    SourcePos,
     choice,
     many,
     optional,
     (<|>),
   )
+import Util (SrcSpan)
 
 
 semi :: Parser Text
@@ -57,7 +57,7 @@ pDataDecl = do
   semi
   return $ DataDecl name ty
 
-pValStmt :: Parser (ModelStmt SourcePos)
+pValStmt :: Parser (ModelStmt SrcSpan)
 pValStmt = do
   symbol "val"
   name <- lexeme pIdent
@@ -68,7 +68,7 @@ pValStmt = do
   semi
   return $ ValStmt name ty val
 
-pParamStmt :: Parser (ModelStmt SourcePos)
+pParamStmt :: Parser (ModelStmt SrcSpan)
 pParamStmt = do
   symbol "param"
   name <- lexeme pIdent
@@ -80,7 +80,7 @@ pParamStmt = do
   semi
   return $ ParamStmt name ty dist bij
 
-pObsStmt :: Parser (ModelStmt SourcePos)
+pObsStmt :: Parser (ModelStmt SrcSpan)
 pObsStmt = do
   symbol "obs"
   name <- lexeme pIdent
@@ -92,10 +92,10 @@ pObsStmt = do
 pDecl :: Parser Decl
 pDecl = choice [pCardDecl, pFactorDecl, pDataDecl]
 
-pModelStmt :: Parser (ModelStmt SourcePos)
+pModelStmt :: Parser (ModelStmt SrcSpan)
 pModelStmt = choice [pValStmt, pParamStmt, pObsStmt]
 
-pModel :: Parser (Model SourcePos)
+pModel :: Parser (Model SrcSpan)
 pModel = Model <$> many pModelStmt
 
 
@@ -103,14 +103,14 @@ pModel = Model <$> many pModelStmt
 
 -- parsing programs
 
-parseProgram :: Parser (Program SourcePos)
+parseProgram :: Parser (Program SrcSpan)
 parseProgram = do
   decls <- many pDecl
   model <- pModel
   eof
   return $ Program decls model
 
-parseLibrary :: Parser (Library SourcePos)
+parseLibrary :: Parser (Library SrcSpan)
 parseLibrary = do
   defs <- many $ (Left <$> pFunDef) <|> (Right <$> pDistDef)
   eof

@@ -17,9 +17,9 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import Text.Megaparsec.Pos (SourcePos)
 import Types (Shape, Ty)
+import Util (SrcSpan)
 
 type Name = Text
-
 type FuncName = Text
 
 data BinOp
@@ -55,7 +55,7 @@ data ExprF a
 
 type Expr ann = Cofree ExprF ann
 
-type ExprSrc = Expr SourcePos
+type ExprSrc = Expr SrcSpan
 
 type DistName = Text
 
@@ -74,10 +74,10 @@ data BijectorF a
 
 type Bijector ann = Cofree BijectorF ann
 
-data Decl
+data Decl 
   = CardDecl Name
   | FactorDecl Name
-  | DataDecl Name Ty
+  | DataDecl Name Ty 
   deriving (Show)
 
 -- include shape that is being broadcast over?
@@ -108,6 +108,9 @@ data FunDef ann = FunDef
     _ret :: Ty,
     _body :: (FunBody ann)
   }
+instance Show (FunDef a) where 
+  show (FunDef name args _ _) = show name ++ ' ':show args
+
 
 data DistDef ann = DistDef
   { _distName :: Text,
@@ -119,9 +122,9 @@ data DistDef ann = DistDef
   }
 
 data FunBody ann
-  = LetPrimIn Text Ty (PrimApp ann) (FunBody ann)
-  | FunLetIn Text Ty (Expr ann) (FunBody ann)
-  | FunRet (Expr ann)
+  = LetPrimIn Text Ty (PrimApp ann) (FunBody ann) 
+  | FunLetIn Text Ty (Expr ann) (FunBody ann) 
+  | FunRet (Expr ann) 
 
 data SampleBody ann
   = SampleIn Text Ty (Distribution ann) (SampleBody ann)
