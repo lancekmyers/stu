@@ -35,7 +35,7 @@ import Util (SrcSpan, joinSrcSpan)
 
 inferTy ::
   forall m.
-  ( MonadTyCtx m ) =>
+  (MonadTyCtx m) =>
   Cofree ExprF SrcSpan ->
   m (Cofree ExprF Ty)
 inferTy = para (go . runIdentity . getCompose)
@@ -79,7 +79,7 @@ alg loc (FunAppF fname arg_tys) = do
   case unify arg_tys' fty of
     Left _ -> badFunApp fname loc arg_tys' fty
     Right (_, ret) -> return ret
-alg loc (LitReal _) = return $ Ty [] REAL (Just loc) 
+alg loc (LitReal _) = return $ Ty [] REAL (Just loc)
 alg loc (LitInt _) = return $ Ty [] INT (Just loc)
 alg loc (LitArray []) = otherErr "Cannot infer type of empty tensor"
 alg loc (LitArray tys) = do
@@ -88,4 +88,4 @@ alg loc (LitArray tys) = do
     then
       let (Ty sh el _) = head tys'
        in return $ Ty (shCons (CardN $ length tys') sh) el (Just loc)
-    else nonHomogenousArrayLit tys' 
+    else nonHomogenousArrayLit tys'
