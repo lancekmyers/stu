@@ -48,6 +48,11 @@ data ExprF a
   | VarF Name VarDomain
   | FunAppF FuncName [a]
   | GatherF a a
+  | ScatterAddF a a -- ix targ
+  | TransposeF a [Int]
+  | --   | CondF a a a
+    FoldF a a a a Int
+  | ScanF FuncName a a -- mul e xs
   | LitReal Double
   | LitInt Int
   | LitArray [a]
