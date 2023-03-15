@@ -51,7 +51,7 @@ data ExprF a
   | ScatterAddF a a -- ix targ
   | TransposeF a [Int]
   | --   | CondF a a a
-    FoldF a a a a Int
+    FoldF FuncName a a
   | ScanF FuncName a a -- mul e xs
   | LitReal Double
   | LitInt Int

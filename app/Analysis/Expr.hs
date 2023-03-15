@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module Analysis.Expr where
 
@@ -22,13 +23,22 @@ import Data.Functor.Foldable
   ( Corecursive (embed),
     Recursive (para, project),
   )
+import Data.List (sort)
+import Data.Text (pack)
 import Types
   ( Card (CardN),
     ElTy (..),
+    FunctionTy (..),
     Ty (Ty),
     broadcast,
+    rank,
     shCons,
+    shDiff',
+    shFromList,
+    shRank,
+    shToList,
     shUncons,
+    shape,
     unify,
   )
 import Util (SrcSpan, joinSrcSpan)
@@ -79,6 +89,47 @@ alg loc (FunAppF fname arg_tys) = do
   case unify arg_tys' fty of
     Left _ -> badFunApp fname loc arg_tys' fty
     Right (_, ret) -> return ret
+alg loc (ScatterAddF xs_ty is_ty) = do
+  -- xs : [k]t
+  -- is : [n]#k
+  -- ------------
+  --    : [n]real
+  (Ty xs_sh xs_el _xs_loc) <- xs_ty
+  (Ty is_sh is_el _is_loc) <- is_ty
+  case (shToList xs_sh, shToList is_sh) of
+    ([k], [_n])
+      | is_el == (IND k) -> return $ Ty is_sh xs_el (Just loc)
+      | otherwise -> otherErr "Scatter rhs must have elements of type of index of lhs"
+    _ ->
+      otherErr $
+        "scatter expects vector arguments, was given tensor of nonzero rank"
+alg loc (TransposeF x_ty perm) = do
+  Ty sh elTy _ <- x_ty
+  let isPerm = sort perm == [0 .. shRank sh]
+  if not isPerm
+    then otherErr "Invalaid gather given to transpose"
+    else return $ Ty (shFromList $ (shToList sh !!) <$> perm) elTy (Just loc)
+alg loc (FoldF fname x0 xs_ty) = do
+  -- f : (x : [..n]t, y : [..m]t') -> [..n]t
+  -- x0 : [..n]t'
+  -- xs : [..m',..m]t'
+  Ty xs_sh elTy _ <- xs_ty
+  Ty x0_sh x0_el_ty _ <- x0
+  fty <- lookupFun (Just loc) fname
+
+  (prefix, sh) <- case fty of
+    FunctionTy [(_, t1), (_, t2)] ret
+      | ret == t1 -> case xs_sh `shDiff'` (shape t1) of
+          Just p -> pure (p, shape t1)
+          Nothing -> otherErr "The folding function does not have the proper type"
+    _ -> otherErr "The folding function does not have the proper type"
+
+  Ty ret_sh el_ret _ <- case unify [Ty x0_sh x0_el_ty Nothing, Ty sh elTy Nothing] fty of
+    Left _ -> otherErr "The folding function does not have the proper type"
+    Right (_, ret) -> return ret
+  return $ Ty (prefix <> ret_sh) el_ret (Just loc)
+alg loc (ScanF fname x0 xs_ty) = do
+  _
 alg loc (LitReal _) = return $ Ty [] REAL (Just loc)
 alg loc (LitInt _) = return $ Ty [] INT (Just loc)
 alg loc (LitArray []) = otherErr "Cannot infer type of empty tensor"

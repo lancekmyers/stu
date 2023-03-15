@@ -1,11 +1,11 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Types where
 
@@ -20,7 +20,6 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import GHC.Exts (IsList (..))
 import Prettyprinter
-import GHC.Exts (IsList (..))
 import Util (SrcSpan)
 
 data ElTy
@@ -50,14 +49,14 @@ prettyShape sh = tupled . fmap viaShow $ V.toList (getVec sh)
 
 data Ty = Ty Shape ElTy (Maybe SrcSpan)
 
-instance Eq Ty where 
+instance Eq Ty where
   (Ty sh el _) == (Ty sh' el' _) = (sh == sh') && (el == el')
 
-shape :: Ty -> Shape 
-shape (Ty sh _ _) = sh 
+shape :: Ty -> Shape
+shape (Ty sh _ _) = sh
 
-elTy :: Ty -> ElTy 
-elTy (Ty _ et _) = et 
+elTy :: Ty -> ElTy
+elTy (Ty _ et _) = et
 
 rank :: Ty -> Int
 rank (Ty sh _ _) = length (getVec sh)
@@ -123,9 +122,9 @@ broadcast (MkShape xs) (MkShape ys) = MkShape . mappend prefix <$> zs
 -- | Does sh broadcast to sh'?
 broadcastsTo :: Ty -> Ty -> Bool
 broadcastsTo ty ty' = (el == el') && (shapeBroadcastsTo sh sh')
-  where 
-    sh  = shape ty
-    el  = elTy ty
+  where
+    sh = shape ty
+    el = elTy ty
     sh' = shape ty'
     el' = elTy ty'
 
@@ -138,6 +137,23 @@ shapeBroadcastsTo (MkShape sh) (MkShape sh')
     go (CardN 1) _ = True
     go x y = x == y
 
+-- | Takes the "difference" of two shapes.
+-- Assuming the two shapes x, y are such that x is y with a prefix,
+-- it returns the prefix, otherwise it returns nothing
+-- >>> shDiff' (MkShape [CardN 1, CardN 2]) (MkShape [CardN 3, CardN 1, CardN 2])
+-- Nothing
+-- >>> shDiff' (MkShape [CardN 3, CardN 1, CardN 2]) (MkShape [CardN 2])
+-- Nothing
+shDiff' :: Shape -> Shape -> Maybe Shape
+shDiff' (MkShape sh1) (MkShape sh2)
+  | n1 < n2 = Nothing
+  | suffix == sh2 = Just . MkShape $ V.take (n2 - n1) sh1
+  | otherwise = Nothing
+  where
+    n1 = V.length sh1
+    n2 = V.length sh2
+    suffix = V.drop (n2 - n1) sh1
+
 shDiff :: Shape -> Shape -> Maybe Shape
 shDiff (MkShape sh') (MkShape sh) =
   if n > 0 then Just (MkShape prefix) else Nothing
@@ -146,7 +162,7 @@ shDiff (MkShape sh') (MkShape sh) =
     n = abs $ V.length sh - V.length sh'
     prefix = V.take n larger
 
-data FunctionTy 
+data FunctionTy
   = FunctionTy [(Text, Ty)] (Ty)
 
 instance Show FunctionTy where
@@ -192,7 +208,7 @@ go (x, y)
   | x == y = pure ()
   | otherwise = throwError (TyErr "unequal")
 
-substitute :: CardMap -> Ty -> Ty 
+substitute :: CardMap -> Ty -> Ty
 substitute cmap (Ty sh elty _) = Ty (MkShape sh') elty Nothing
   where
     sh' = substGo <$> (getVec sh)
@@ -208,7 +224,7 @@ unify tys (FunctionTy args ret) = do
   let err x = Left (TyErr x)
 
   let tys' = map snd args
-  let shs  = shape <$> tys -- given shapes
+  let shs = shape <$> tys -- given shapes
   let shs' = shape <$> tys' -- expected shapes
   let ranks = shRank <$> shs
   let ranks' = shRank <$> shs'
