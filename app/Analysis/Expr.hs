@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -Wall #-}
 
 module Analysis.Expr where
 
@@ -17,21 +16,18 @@ import Analysis.Error -- (TypeError (..), blame)
 import Control.Comonad.Identity (Identity (Identity, runIdentity))
 import Control.Comonad.Trans.Cofree (Cofree, CofreeF (..))
 import Control.Monad (when)
-import Control.Monad.Except (MonadError (..))
 import Data.Functor.Compose (Compose (Compose, getCompose))
 import Data.Functor.Foldable
   ( Corecursive (embed),
     Recursive (para, project),
   )
 import Data.List (sort)
-import Data.Text (pack)
 import Types
   ( Card (CardN),
     ElTy (..),
     FunctionTy (..),
     Ty (Ty),
     broadcast,
-    rank,
     shCons,
     shDiff',
     shFromList,
@@ -53,12 +49,12 @@ inferTy = para (go . runIdentity . getCompose)
     go ::
       CofreeF ExprF SrcSpan (Cofree ExprF SrcSpan, m (Cofree ExprF Ty)) ->
       m (Cofree ExprF Ty)
-    go (loc :< exp) = do
+    go (loc :< exp') = do
       let embed' = embed . Compose . Identity
-      let foo = fmap (runIdentity . getCompose . project) . snd <$> exp
-      let exp = fmap (\(ty :< exp) -> ty) <$> foo
+      let foo = fmap (runIdentity . getCompose . project) . snd <$> exp'
+      let exp = fmap (\(ty :< _) -> ty) <$> foo
       ty <- alg loc exp
-      baz <- sequence (fmap (\(ty :< exp) -> exp) <$> foo)
+      baz <- sequence (fmap (\(_ :< e) -> e) <$> foo)
       let qux = ((\e -> embed' $ ty :< e) <$> baz) :: ExprF (Cofree ExprF Ty)
       qux' <- annotateVarDomain loc qux
       return . embed' $ ty :< qux'
