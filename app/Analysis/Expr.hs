@@ -111,15 +111,19 @@ alg loc (TransposeF x_ty perm) = do
     else return $ Ty (shFromList $ (shToList sh !!) <$> perm) elTy (Just loc)
 alg loc (FoldF fname x0 xs_ty) = do
   -- f : (x : [..n]t, y : [..m]t') -> [..n]t
-  -- x0 : [..n]t'
+  -- x0 : [..n]t
   -- xs : [..m',..m]t'
   Ty xs_sh elTy _ <- xs_ty
   Ty x0_sh x0_el_ty _ <- x0
   fty <- lookupFun (Just loc) fname
-
+  {- I think that this is wrong, take shDiff' x0_sh (shape t1) -}
+  {- or mayber take shDiff' xs_sh (shape t2) -}
+  -- no, I've come back arround to this
+  -- I replaces xs_sh with x0_sh
+  -- This is almost certainly wrong
   (prefix, sh) <- case fty of
     FunctionTy [(_, t1), (_, t2)] ret
-      | ret == t1 -> case xs_sh `shDiff'` (shape t1) of
+      | ret == t1 -> case x0_sh `shDiff'` (shape t1) of
           Just p -> pure (p, shape t1)
           Nothing -> otherErr "The folding function does not have the proper type"
     _ -> otherErr "The folding function does not have the proper type"
@@ -128,8 +132,31 @@ alg loc (FoldF fname x0 xs_ty) = do
     Left _ -> otherErr "The folding function does not have the proper type"
     Right (_, ret) -> return ret
   return $ Ty (prefix <> ret_sh) el_ret (Just loc)
-alg loc (ScanF fname x0 xs_ty) = do
-  _
+alg loc (ScanF fname x0_ty xs_ty) = do
+  -- (b -> a -> b) -> b -> [a] -> [b]
+  -- f : (x : [..n]t, y : [..m]t') : [..n]t
+  -- x0 : [..n]t
+  -- xs : [..m', ..m]t'
+  -- -------
+  --    : [..m', ..n]t
+  fty <- lookupFun Nothing fname
+  Ty x0_sh x0_el _ <- x0_ty
+  Ty xs_sh xs_el _ <- xs_ty
+  sh <- case fty of
+    FunctionTy [(_, t1), (_, t2)] ret_ty
+      | ret_ty == t1 -> case x0_sh `shDiff'` (shape t1) of
+          Nothing -> otherErr "The scanning function has the wrong type"
+          Just p -> pure $ p <> shape t2
+      | otherwise -> otherErr "The scanning function has the wrong type"
+    _ -> otherErr "The scanning function has the wrong type"
+  Ty ret_sh ret_el _ <- case unify
+    [ Ty x0_sh x0_el Nothing,
+      Ty sh xs_el Nothing
+    ]
+    fty of
+    Right (_, ret_ty) -> pure ret_ty
+    Left _ -> otherErr "The scanning function has the wrong type"
+  return $ Ty (xs_sh <> ret_sh) ret_el (Just loc)
 alg loc (LitReal _) = return $ Ty [] REAL (Just loc)
 alg loc (LitInt _) = return $ Ty [] INT (Just loc)
 alg loc (LitArray []) = otherErr "Cannot infer type of empty tensor"
