@@ -13,6 +13,7 @@ import Control.Monad.Combinators.Expr
   )
 import Parser.Util
   ( Parser,
+    integer,
     lexeme,
     pIdent,
     parens,
@@ -29,27 +30,27 @@ import Text.Megaparsec
   )
 import Util (mkPos)
 
-withLoc parser = do 
-  from <- getSourcePos 
-  x <- parser 
-  to <- getSourcePos 
-  return . cofree $ (mkPos from to) :< x  
-
+withLoc parser = do
+  from <- getSourcePos
+  x <- parser
+  to <- getSourcePos
+  return . cofree $ (mkPos from to) :< x
 
 pVariable :: Parser ExprSrc
 pVariable = withLoc $ VarF <$> (lexeme pIdent) <*> (pure Unknown)
 
-
 pLitInt :: Parser ExprSrc
 pLitInt = withLoc $ LitInt . fromInteger <$> signedInteger
-
 
 pLitReal :: Parser ExprSrc
 pLitReal = withLoc $ LitReal <$> signedFloat
 
 pLitArray :: Parser ExprSrc
-pLitArray = withLoc $ 
-  between (symbol "[") (symbol "]")
+pLitArray =
+  withLoc $
+    between
+      (symbol "[")
+      (symbol "]")
       (LitArray <$> sepBy pExpr (symbol ","))
 
 pLit :: Parser (ExprSrc)
@@ -59,7 +60,6 @@ pLit =
       try pLitReal,
       pLitInt
     ]
-
 
 pTerm :: Parser ExprSrc
 pTerm =
@@ -97,7 +97,6 @@ pSub = do
   loc' <- getSourcePos
   return $ \x y -> cofree $ (mkPos loc loc') :< ArithF Sub x y
 
-
 operatorTable :: [[Operator Parser ExprSrc]]
 operatorTable =
   [ [ InfixL pMul,
@@ -108,14 +107,45 @@ operatorTable =
     ]
   ]
 
+pFold = do
+  let comma = symbol ","
+  from <- getSourcePos
+  "fold"
+  fold <- parens $ FoldF <$> (pIdent <* comma) <*> (pExpr <* comma) <*> pExpr
+  to <- getSourcePos
+  return . cofree $ (mkPos from to) :< fold
+
+pScan = do
+  let comma = symbol ","
+  from <- getSourcePos
+  "scan"
+  scan <- parens $ ScanF <$> (pIdent <* comma) <*> (pExpr <* comma) <*> pExpr
+  to <- getSourcePos
+  return . cofree $ (mkPos from to) :< scan
+
+pTranspose = do
+  from <- getSourcePos
+  "transpose"
+  tr <- parens $ TransposeF <$> (pExpr <* comma) <*> pPerm
+  to <- getSourcePos
+  return . cofree $ (mkPos from to) :< tr
+  where
+    comma = symbol ","
+    pPerm =
+      between (symbol "[") (symbol "]") $
+        sepBy (fmap fromIntegral integer) comma
+
 pApp :: Parser ExprSrc
 pApp = do
   from <- getSourcePos
   funcName <- pIdent
   args <- parens $ pExpr `sepBy` symbol ","
-  to <- getSourcePos  
+  to <- getSourcePos
   case funcName of
     "gather" -> case args of
       [xs, is] -> return . cofree $ (mkPos from to) :< GatherF xs is
       _ -> fail "gather expects 2 arguments"
+    "scatter_add" -> case args of
+      [xs, is] -> return . cofree $ (mkPos from to) :< ScatterAddF xs is
+      _ -> fail "scatter_add expects 2 arguments"
     _ -> return . cofree $ (mkPos from to) :< FunAppF funcName args
