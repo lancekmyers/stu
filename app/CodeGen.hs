@@ -3,7 +3,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-
 module CodeGen where
 
 import AST
@@ -38,12 +37,11 @@ import Data.Functor.Foldable (fold)
 import Data.Functor.Identity (Identity (..))
 import qualified Data.Map as M
 import Data.Maybe (catMaybes, mapMaybe)
-
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Text.Builder (Builder)
-import Types (Card (CardFV, CardN), Shape (getVec))
+import Types (Card (CardFV, CardN), Shape (getVec), Ty)
 
 preamble :: PyCode
 preamble =
@@ -56,11 +54,10 @@ preamble =
       PyImport "arviz as az"
     ]
 
-
 cgBijDict :: forall a m. CodeGenMonad m => Model a -> m PyCode
 cgBijDict (Model stmts) = do
   kv <- traverse go stmts
-  let bijectors = PyDict [ (PyStr k, v) | (k,v) <- catMaybes kv]
+  let bijectors = PyDict [(PyStr k, v) | (k, v) <- catMaybes kv]
   return $ PyAssign "bijectors" bijectors
   where
     go :: ModelStmt a -> m (Maybe (Text, PyExp))
@@ -102,7 +99,7 @@ independent (Just n) dist = batched
         [dist]
         [("reinterpreted_batch_ndims", PyNum $ Right n)]
 
-cgDistribution :: Distribution a -> PyExp
+cgDistribution :: Distribution Ty -> PyExp
 cgDistribution (Distribution name args _ (bd, br_sh)) =
   sample br_sh . independent bd $ tfd name @@ (cgExpr <$> args)
 
@@ -114,7 +111,7 @@ ld_tr name = PyBlock [ld, tr]
     ld = PyAssign (name <> "_tr") (PyMethod bij "forward" param)
     tr = PyAssign (name <> "_ld") (PyMethod bij "forward_log_det_jacobian" param)
 
-cgModelStmt :: ModelStmt a -> PyCode
+cgModelStmt :: ModelStmt Ty -> PyCode
 cgModelStmt (ParamStmt name ty dist _) = PyBlock [ld_tr name, lp]
   where
     param = PyIdent [] $ name <> "_tr"
@@ -129,7 +126,7 @@ cgModelStmt (ObsStmt name dist) = lp
         PyMethod (cgDistribution dist) "log_prob" [obs]
 cgModelStmt (ValStmt name _ x) = PyAssign (name <> "_val") $ cgExpr x
 
-cgModel :: forall a m. CodeGenMonad m => Program a -> m PyCode
+cgModel :: forall m. CodeGenMonad m => Program Ty -> m PyCode
 cgModel (Program decls model@(Model stmts)) = do
   bijDict <- cgBijDict model
   return $ PyBlock [bijDict, mk_log_prob]
@@ -139,17 +136,19 @@ cgModel (Program decls model@(Model stmts)) = do
         Nothing
         "mk_log_prob"
         ["inf_obj"]
-        (PyBlock [
-          PyAssign "cards" $ "mk_cards" @@ ["inf_obj"], 
-          cgData, 
-          log_prob, 
-          PyRet $ PyIdent [] "log_prob"])
+        ( PyBlock
+            [ PyAssign "cards" $ "mk_cards" @@ ["inf_obj"],
+              cgData,
+              log_prob,
+              PyRet $ PyIdent [] "log_prob"
+            ]
+        )
 
     log_prob =
       PyDef (Just "jax.jit") "log_prob" ["params"] $
         PyBlock [PyBlock $ cgModelStmt <$> stmts, PyRet $ lpSum stmts]
 
-    lpSum :: [ModelStmt a] -> PyExp
+    lpSum :: [ModelStmt Ty] -> PyExp
     lpSum ((ParamStmt name _ _ _) : xs) =
       jnp "add"
         @@ [ jnp "add"
@@ -164,17 +163,19 @@ cgModel (Program decls model@(Model stmts)) = do
     lpSum ((ValStmt _ _ _) : xs) = lpSum xs
     lpSum [] = PyNum (Left 0)
 
-
-cgCards' :: PyCode 
-cgCards' = PyDef Nothing "mk_cards" ["inf_obj"] $ PyBlock [
-  PyAssign "cards" $ PyDict [],
-  PyFor "g" (("inf_obj" !$ "keys") []) $ 
-    PyFor "kv" (("inf_obj" ! "g" !. "dims" !$ "items") []) $ 
-      PyDo $ ("cards" !$ "update") [
-        PyDict [("kv" ! PyNum (Right 0), "kv" ! PyNum (Right 1))] 
-      ],
-  PyRet "cards"
-  ]
+cgCards' :: PyCode
+cgCards' =
+  PyDef Nothing "mk_cards" ["inf_obj"] $
+    PyBlock
+      [ PyAssign "cards" $ PyDict [],
+        PyFor "g" (("inf_obj" !$ "keys") []) $
+          PyFor "kv" (("inf_obj" ! "g" !. "dims" !$ "items") []) $
+            PyDo $
+              ("cards" !$ "update")
+                [ PyDict [("kv" ! PyNum (Right 0), "kv" ! PyNum (Right 1))]
+                ],
+        PyRet "cards"
+      ]
 
 cgData :: PyCode
 cgData = PyAssign "data" (obser_data !$ "__or__" $ [const_data])
@@ -185,34 +186,30 @@ cgData = PyAssign "data" (obser_data !$ "__or__" $ [const_data])
     obser_data = map_jnp_array ("dict" @@ ["inf_obj" !. "observed_data"])
     const_data = map_jnp_array ("dict" @@ ["inf_obj" !. "constant_data"])
 
-
-cgProg :: forall a m. CodeGenMonad m => Program a -> m PyCode
+cgProg :: forall m. CodeGenMonad m => Program Ty -> m PyCode
 cgProg prog = do
   model' <- cgModel prog
-  return $ PyBlock [
-      preamble, 
-      cgCards', 
-      model', 
-      cgPred prog, 
-      cgPriorSample prog
-    ]
+  return $
+    PyBlock
+      [ preamble,
+        cgCards',
+        model',
+        cgPred prog,
+        cgPriorSample prog
+      ]
 
-
-writeProg :: forall a m. CodeGenMonad m => Program a -> m Builder
+writeProg :: forall m. CodeGenMonad m => Program Ty -> m Builder
 writeProg prog = do
   prog' <- cgProg prog
   return $ runReader (prettyCode prog') 0
 
-
-writeLib :: forall a m. CodeGenMonad m => Library a -> m Builder
+writeLib :: forall m. CodeGenMonad m => Library Ty -> m Builder
 writeLib lib = do
   prog' <- pure . PyBlock $ cgFunDef <$> (_funs lib)
   return $ runReader (prettyCode prog') 0
 
-
-cgPriorSampleGo :: (ModelStmt a) -> Int -> PyCode
-cgPriorSampleGo (ObsStmt name dist) i = PyBlock [] 
-
+cgPriorSampleGo :: (ModelStmt Ty) -> Int -> PyCode
+cgPriorSampleGo (ObsStmt name dist) i = PyBlock []
 cgPriorSampleGo (ValStmt name _ exp) i = PyAssign (name <> "_val") $ cgExpr exp
 cgPriorSampleGo (ParamStmt name _ dist _) i =
   PyBlock
@@ -223,21 +220,22 @@ cgPriorSampleGo (ParamStmt name _ dist _) i =
       PyAssign ("params['" <> name <> "']") $ PyIdent [] (name <> "_tr")
     ]
 
-cgPriorSample :: Program a -> PyCode
+cgPriorSample :: Program Ty -> PyCode
 cgPriorSample (Program _ (Model xs)) =
   PyDef Nothing "mk_prior_sample" ["inf_obj"] $
     PyBlock
       [ PyAssign "cards" ("mk_cards" @@ ["inf_obj"]),
         constData,
         emptyParams,
-        PyDef Nothing "sample" ["key"] $ PyBlock [
-          PyAssign "keys" $
-            PyIdent ["jax", "random"] "split" @@ 
-              ["key", PyNum . Right $ length xs],
-          stmts,
-          PyAssign "prior_samples" $ prior_dict,
-          PyRet $ "prior_samples"
-        ],
+        PyDef Nothing "sample" ["key"] $
+          PyBlock
+            [ PyAssign "keys" $
+                PyIdent ["jax", "random"] "split"
+                  @@ ["key", PyNum . Right $ length xs],
+              stmts,
+              PyAssign "prior_samples" $ prior_dict,
+              PyRet $ "prior_samples"
+            ],
         PyRet "sample"
         {-
         PyRet $ PyApply (PyIdent ["az"] "from_dict") []
@@ -266,29 +264,32 @@ cgPriorSample (Program _ (Model xs)) =
         [ (PyStr name, "params" ! (PyStr name)) | name <- params
         ]
 
--- | Generate predictive function 
--- python function given constant data and parameters, generate observed data 
-cgPred :: Program a -> PyCode 
-cgPred (Program _ (Model xs)) = PyDef Nothing "mk_pred" ["inf_obj"] $ 
-  PyBlock [
-    PyAssign "cards" ("mk_cards" @@ ["inf_obj"]),
-    constData,
-    PyDef Nothing "pred" ["params", "key"] $ PyBlock [
-      PyAssign "keys" $
-            PyIdent ["jax", "random"] "split" @@ 
-              ["key", PyNum . Right $ length xs],
-      stmts, 
-      PyRet $ PyDict [
-        (PyStr name, "data" ! (PyStr name) ) | name <- observ
+-- | Generate predictive function
+-- python function given constant data and parameters, generate observed data
+cgPred :: Program Ty -> PyCode
+cgPred (Program _ (Model xs)) =
+  PyDef Nothing "mk_pred" ["inf_obj"] $
+    PyBlock
+      [ PyAssign "cards" ("mk_cards" @@ ["inf_obj"]),
+        constData,
+        PyDef Nothing "pred" ["params", "key"] $
+          PyBlock
+            [ PyAssign "keys" $
+                PyIdent ["jax", "random"] "split"
+                  @@ ["key", PyNum . Right $ length xs],
+              stmts,
+              PyRet $
+                PyDict
+                  [ (PyStr name, "data" ! (PyStr name)) | name <- observ
+                  ]
+            ],
+        PyRet "pred"
       ]
-    ], 
-    PyRet "pred" 
-  ]
-  where 
+  where
     map_jnp_array x =
       PyIdent ["jax", "tree_util"] "tree_map"
         @@ [PyIdent ["jnp"] "array", x]
-    constData = 
+    constData =
       PyAssign "data" $
         map_jnp_array
           ("dict" @@ ["inf_obj" !. "constant_data"])
@@ -296,13 +297,17 @@ cgPred (Program _ (Model xs)) = PyDef Nothing "mk_pred" ["inf_obj"] $
     params = mapMaybe (\case (ParamStmt x _ _ _) -> Just x; _ -> Nothing) xs
     observ = mapMaybe (\case (ObsStmt x _) -> Just x; _ -> Nothing) xs
 
-    stmts = PyBlock $ zipWith go [0 ..] xs 
+    stmts = PyBlock $ zipWith go [0 ..] xs
 
-    go :: Int -> ModelStmt a -> PyCode 
-    go i (ObsStmt name dist) = PyAssign ("data['" <> name <> "']") $
-      ( cgDistribution dist
-        !$ "sample"
-        $ [PyList [], "keys" ! (PyNum $ Right i)] )
-    go i (ParamStmt name ty dist bij) = PyAssign (name <> "_tr") 
-      ("params" ! PyStr name)
+    go :: Int -> ModelStmt Ty -> PyCode
+    go i (ObsStmt name dist) =
+      PyAssign ("data['" <> name <> "']") $
+        ( cgDistribution dist
+            !$ "sample"
+            $ [PyList [], "keys" ! (PyNum $ Right i)]
+        )
+    go i (ParamStmt name ty dist bij) =
+      PyAssign
+        (name <> "_tr")
+        ("params" ! PyStr name)
     go i (ValStmt name ty val) = PyAssign (name <> "_val") (cgExpr val)
