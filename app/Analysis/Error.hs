@@ -236,20 +236,6 @@ binOpErr op pos t1 t2 =
         Note $ "The right hand side has type " <> (T.pack $ show t2)
       ]
 
-invalidGather ::
-  MonadValidate TypeError m =>
-  SrcSpan ->
-  Ty ->
-  Ty ->
-  m a
-invalidGather loc t1 t2 =
-  refute . mkDiagnostic $
-    Err
-      Nothing
-      "Invalid gather"
-      [(loc, Blank)]
-      []
-
 invalidFold ::
   MonadValidate TypeError m =>
   SrcSpan ->

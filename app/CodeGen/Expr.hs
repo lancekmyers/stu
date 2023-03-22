@@ -51,10 +51,6 @@ cgExpr = cata (\(Compose (Identity (ty :< e))) -> go ty e)
         xs
         [("axis", PyNum $ Right (-1))]
     go _ (FunAppF f xs) = jnp f @@ xs
-    go _ (GatherF xs is) = PyGet xs is -- jnp "gather" @@ [xs, is]
-    go t (ScatterAddF xs is) =
-      let z = jnp "zeros" @@ [cgShape . shape $ t]
-       in ((z !$ "at") [is]) !$ "add" $ [xs]
     go _ (FoldF f x0 xs) = lax "reduce" @@ [xs, x0, PyIdent [] f]
     go _ (ScanF f x0 xs) =
       lax "scan"

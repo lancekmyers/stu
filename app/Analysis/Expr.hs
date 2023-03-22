@@ -69,42 +69,17 @@ alg loc (ArithF binop t1 t2) = do
     Nothing -> binOpErr binop loc ty_lhs ty_rhs
     Just sh -> return $ Ty sh el_lhs (joinSrcSpan <$> p1 <*> p2)
 alg loc (VarF name _) = lookupVar (Just loc) name
-alg loc (GatherF xs_ty is_ty) = do
-  xs_ty'@(Ty xs_sh xs_el _) <- xs_ty -- [k, l]real
-  is_ty'@(Ty is_sh is_el _) <- is_ty -- [i, j]#k
-  case is_el of
-    IND card -> case shUncons xs_sh of
-      Just (k, ks) -> do
-        when (card /= k) (invalidGather loc xs_ty' is_ty')
-        let sh = is_sh <> ks
-        return $ Ty sh xs_el (Just loc)
-      Nothing -> invalidGather loc xs_ty' is_ty'
-    _ -> invalidGather loc xs_ty' is_ty'
 alg loc (FunAppF fname arg_tys) = do
   fty <- lookupFun (Just loc) fname
   arg_tys' <- sequenceA arg_tys
   case unify arg_tys' fty of
     Left _ -> badFunApp fname loc arg_tys' fty
     Right (_, ret) -> return ret
-alg loc (ScatterAddF xs_ty is_ty) = do
-  -- xs : [k]t
-  -- is : [n]#k
-  -- ------------
-  --    : [n]real
-  (Ty xs_sh xs_el _xs_loc) <- xs_ty
-  (Ty is_sh is_el _is_loc) <- is_ty
-  case (shToList xs_sh, shToList is_sh) of
-    ([k], [_n])
-      | is_el == (IND k) -> return $ Ty is_sh xs_el (Just loc)
-      | otherwise -> otherErr "Scatter rhs must have elements of type of index of lhs"
-    _ ->
-      otherErr $
-        "scatter expects vector arguments, was given tensor of nonzero rank"
 alg loc (TransposeF x_ty perm) = do
   Ty sh elTy _ <- x_ty
   let isPerm = sort perm == [0 .. shRank sh]
   if not isPerm
-    then otherErr "Invalaid gather given to transpose"
+    then otherErr "Invalaid permutation given to transpose"
     else return $ Ty (shFromList $ (shToList sh !!) <$> perm) elTy (Just loc)
 alg loc (FoldF fname x0 xs_ty) = do
   -- f : (x : [..n]t, y : [..m]t') -> [..n]t

@@ -47,11 +47,8 @@ data ExprF a
   = ArithF BinOp a a
   | VarF Name VarDomain
   | FunAppF FuncName [a]
-  | GatherF a a
-  | ScatterAddF a a -- ix targ
   | TransposeF a [Int]
-  | --   | CondF a a a
-    FoldF FuncName a a
+  | FoldF FuncName a a
   | ScanF FuncName a a -- mul e xs
   | LitReal Double
   | LitInt Int

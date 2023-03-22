@@ -144,14 +144,4 @@ pApp = do
   funcName <- pIdent
   args <- parens $ pExpr `sepBy` symbol ","
   to <- getSourcePos
-  case funcName of
-    "gather" -> case args of
-      [xs, is] -> return . cofree $ (mkPos from to) :< GatherF xs is
-      _ -> fail "gather expects 2 arguments"
-    "scatter_add" -> case args of
-      [xs, is] -> return . cofree $ (mkPos from to) :< ScatterAddF xs is
-      _ -> fail "scatter_add expects 2 arguments"
-    "fold" -> fail "bad fold"
-    "scan" -> fail "bad scan"
-    "transpose" -> fail "bad transpose"
-    _ -> return . cofree $ (mkPos from to) :< FunAppF funcName args
+  return . cofree $ (mkPos from to) :< FunAppF funcName args
