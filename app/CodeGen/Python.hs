@@ -23,11 +23,13 @@ data PyExp
   | PyMethod PyExp Text [PyExp]
   | PyIdent [Text] Text -- python identifier
   | PyList [PyExp]
+  | PyTuple [PyExp]
   | PyDict [(PyExp, PyExp)]
   | PyNum (Either Double Int)
   | PyGet PyExp PyExp
   | PyDot PyExp Text
   | PyStr Text
+  | PyLambda [Text] PyExp
   deriving (Show)
 
 instance IsString PyExp where
@@ -38,13 +40,18 @@ prettyExp (PyIdent [] ident) = Builder.text ident
 prettyExp (PyIdent modules ident) =
   (Builder.intercalate "." $ Builder.text <$> modules) <> "." <> Builder.text ident
 prettyExp (PyList xs) = "[" <> Builder.intercalate "," (prettyExp <$> xs) <> "]"
+prettyExp (PyTuple xs) = "(" <> Builder.intercalate "," (prettyExp <$> xs) <> ")"
+prettyExp (PyLambda bd x) =
+  "lambda "
+    <> Builder.intercalate "," (Builder.text <$> bd)
+    <> " : "
+    <> prettyExp x
 prettyExp (PyDict xs) =
   "{"
     <> Builder.intercalate
       ","
       [prettyExp k <> " : " <> prettyExp v | (k, v) <- xs]
     <> "}"
-
 prettyExp (PyNum (Right i)) = Builder.decimal i
 prettyExp (PyNum (Left f)) = Builder.string $ show f
 prettyExp (PyGet x i) = prettyExp x <> "[" <> prettyExp i <> "]"
@@ -120,6 +127,9 @@ prettyCode (PyDef (Just dec) name args body) = do
 
 jnp :: Text -> PyExp
 jnp name = PyIdent ["jnp"] name
+
+lax :: Text -> PyExp
+lax name = PyIdent ["jax", "lax"] name
 
 tfd :: Text -> PyExp
 tfd name = PyIdent ["tfd"] name
