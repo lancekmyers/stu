@@ -22,6 +22,7 @@ import Data.Functor.Foldable
     Recursive (para, project),
   )
 import Data.List (sort)
+import qualified Data.Text as T
 import Types
   ( Card (CardN),
     ElTy (..),
@@ -109,23 +110,18 @@ alg loc (FoldF fname x0 xs_ty) = do
   -- f : (x : [..n]t, y : [..m]t') -> [..n]t
   -- x0 : [..n]t
   -- xs : [..m',..m]t'
-  Ty xs_sh elTy _ <- xs_ty
-  Ty x0_sh x0_el_ty _ <- x0
+  xs_ty'@(Ty xs_sh elTy _) <- xs_ty
+  x0_ty'@(Ty x0_sh x0_el_ty _) <- x0
   fty <- lookupFun (Just loc) fname
-  {- I think that this is wrong, take shDiff' x0_sh (shape t1) -}
-  {- or mayber take shDiff' xs_sh (shape t2) -}
-  -- no, I've come back arround to this
-  -- I replaces xs_sh with x0_sh
-  -- This is almost certainly wrong
   (prefix, sh) <- case fty of
     FunctionTy [(_, t1), (_, t2)] ret
       | ret == t1 -> case x0_sh `shDiff'` (shape t1) of
           Just p -> pure (p, shape t1)
-          Nothing -> otherErr "The folding function does not have the proper type"
-    _ -> otherErr "The folding function does not have the proper type"
+          Nothing -> invalidFold loc fty x0_ty' xs_ty'
+    _ -> invalidFold loc fty x0_ty' xs_ty'
 
   Ty ret_sh el_ret _ <- case unify [Ty x0_sh x0_el_ty Nothing, Ty sh elTy Nothing] fty of
-    Left _ -> otherErr "The folding function does not have the proper type"
+    Left _ -> invalidFold loc fty x0_ty' xs_ty'
     Right (_, ret) -> return ret
   return $ Ty (prefix <> ret_sh) el_ret (Just loc)
 alg loc (ScanF fname x0_ty xs_ty) = do
@@ -136,15 +132,15 @@ alg loc (ScanF fname x0_ty xs_ty) = do
   -- -------
   --    : [..m', ..n]t
   fty <- lookupFun Nothing fname
-  Ty x0_sh x0_el _ <- x0_ty
-  Ty xs_sh xs_el _ <- xs_ty
+  x0_ty'@(Ty x0_sh x0_el _) <- x0_ty
+  xs_ty'@(Ty xs_sh xs_el _) <- xs_ty
   sh <- case fty of
     FunctionTy [(_, t1), (_, t2)] ret_ty
       | ret_ty == t1 -> case x0_sh `shDiff'` (shape t1) of
-          Nothing -> otherErr "The scanning function has the wrong type"
+          Nothing -> invalidScan loc fty x0_ty' xs_ty'
           Just p -> pure $ p <> shape t2
-      | otherwise -> otherErr "The scanning function has the wrong type"
-    _ -> otherErr "The scanning function has the wrong type"
+      | otherwise -> invalidScan loc fty x0_ty' xs_ty'
+    _ -> invalidScan loc fty x0_ty' xs_ty'
   Ty ret_sh ret_el _ <- case unify
     [ Ty x0_sh x0_el Nothing,
       Ty sh xs_el Nothing
