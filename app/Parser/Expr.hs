@@ -65,6 +65,9 @@ pTerm :: Parser ExprSrc
 pTerm =
   choice
     [ parens pExpr,
+      try pFold,
+      try pScan,
+      try pTranspose,
       try pApp,
       try pVariable,
       pLit
@@ -148,4 +151,7 @@ pApp = do
     "scatter_add" -> case args of
       [xs, is] -> return . cofree $ (mkPos from to) :< ScatterAddF xs is
       _ -> fail "scatter_add expects 2 arguments"
+    "fold" -> fail "bad fold"
+    "scan" -> fail "bad scan"
+    "transpose" -> fail "bad transpose"
     _ -> return . cofree $ (mkPos from to) :< FunAppF funcName args
