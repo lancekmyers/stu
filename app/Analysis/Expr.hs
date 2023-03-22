@@ -12,7 +12,14 @@ import Analysis.Context
     lookupFun,
     lookupVar,
   )
-import Analysis.Error -- (TypeError (..), blame)
+import Analysis.Error
+  ( badFunApp,
+    binOpErr,
+    invalidFold,
+    invalidScan,
+    nonHomogenousArrayLit,
+    otherErr,
+  )
 import Control.Comonad.Identity (Identity (Identity, runIdentity))
 import Control.Comonad.Trans.Cofree (Cofree, CofreeF (..))
 import Control.Monad (when)
