@@ -7,8 +7,8 @@
 module Analysis.Error where
 
 import AST (BinOp)
-import Control.Monad.Except ( MonadError(throwError) )
-import Control.Monad.Validate (MonadValidate(..), refute, dispute)
+import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.Validate (MonadValidate (..), dispute, refute)
 import Data.Foldable (toList)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -41,7 +41,7 @@ import Util (SrcSpan)
 type TypeError = Diagnostic T.Text
 
 mkDiagnostic :: Report msg -> Diagnostic msg
-mkDiagnostic = addReport def 
+mkDiagnostic = addReport def
 
 badFunApp ::
   MonadValidate TypeError m =>
@@ -51,7 +51,7 @@ badFunApp ::
   FunctionTy ->
   m a
 badFunApp fname fnAppPos given fty@(FunctionTy argTys _) =
-  refute . mkDiagnostic $ 
+  refute . mkDiagnostic $
     Err
       Nothing
       ("Error in application of function " <> fname)
@@ -236,19 +236,89 @@ binOpErr op pos t1 t2 =
         Note $ "The right hand side has type " <> (T.pack $ show t2)
       ]
 
-invalidGather ::
+invalidFold ::
   MonadValidate TypeError m =>
   SrcSpan ->
+  FunctionTy ->
   Ty ->
   Ty ->
   m a
-invalidGather loc t1 t2 =
+invalidFold loc fty x0@(Ty _ _ (Just x0l)) xs@(Ty _ _ (Just xsl)) =
   refute . mkDiagnostic $
     Err
       Nothing
-      "Invalid gather"
-      [(loc, Blank)]
+      "Invalid fold"
+      [ (x0l, Where $ "has type " <> (T.pack $ show x0)),
+        (xsl, Where $ "has type " <> (T.pack $ show xs)),
+        ( let Position (l, c) _ f = loc in Position (l, c) (l, c + 4) f,
+          This . T.intercalate "\n" $
+            [ "fold expects to be called as fold(f, init, xs) where",
+              "  f    : (b : ['m..]real, a : ['n..]real) -> ['m..]real",
+              "  init : ['m..]real",
+              "  xs   : ['p.., 'n..]real"
+            ]
+        )
+      ]
       []
+invalidFold loc fty x0 xs =
+  refute . mkDiagnostic $
+    Err
+      Nothing
+      "Invalid fold"
+      [ ( let Position (l, c) _ f = loc in Position (l, c) (l, c + 4) f,
+          This . T.intercalate "\n" $
+            [ "fold expects to be called as fold(f, init, xs) where",
+              "  f    : (b : ['m..]real, a : ['n..]real) -> ['m..]real",
+              "  init : ['m..]real",
+              "  xs   : ['p.., 'n..]real"
+            ]
+        )
+      ]
+      [ Note $ "has type " <> (T.pack $ show x0),
+        Note $ "has type " <> (T.pack $ show xs)
+      ]
+
+invalidScan ::
+  MonadValidate TypeError m =>
+  SrcSpan ->
+  FunctionTy ->
+  Ty ->
+  Ty ->
+  m a
+invalidScan loc fty x0@(Ty _ _ (Just x0l)) xs@(Ty _ _ (Just xsl)) =
+  refute . mkDiagnostic $
+    Err
+      Nothing
+      "Invalid scan"
+      [ (x0l, Where $ "has type " <> (T.pack $ show x0)),
+        (xsl, Where $ "has type " <> (T.pack $ show xs)),
+        ( let Position (l, c) _ f = loc in Position (l, c) (l, c + 4) f,
+          This . T.intercalate "\n" $
+            [ "scan expects to be called as scan(f, init, xs) where",
+              "  f    : (b : ['m..]real, a : ['n..]real) -> ['m..]real",
+              "  init : ['m..]real",
+              "  xs   : ['p.., 'n..]real"
+            ]
+        )
+      ]
+      []
+invalidScan loc fty x0 xs =
+  refute . mkDiagnostic $
+    Err
+      Nothing
+      "Invalid scan"
+      [ ( let Position (l, c) _ f = loc in Position (l, c) (l, c + 4) f,
+          This . T.intercalate "\n" $
+            [ "scan expects to be called as scan(f, init, xs) where",
+              "  f    : (b : ['m..]real, a : ['n..]real) -> ['m..]real",
+              "  init : ['m..]real",
+              "  xs   : ['p.., 'n..]real"
+            ]
+        )
+      ]
+      [ Note $ "has type " <> (T.pack $ show x0),
+        Note $ "has type " <> (T.pack $ show xs)
+      ]
 
 nonHomogenousArrayLit :: (MonadValidate TypeError m) => a -> m b
 nonHomogenousArrayLit _tys =

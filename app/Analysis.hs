@@ -1,10 +1,9 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE EmptyCase #-}
-
 
 module Analysis (checkModel, buildCtx, Ctx, ctxFromSigs, checkFunDef, checkLib) where
 
@@ -23,26 +22,26 @@ import Analysis.Context
     buildCtx,
     ctxFromSigs,
     insertTy,
-    lookupVar, 
-    validateType
+    lookupVar,
+    validateType,
   )
 import Analysis.DistDef (checkDistDef, checkDistDefs)
 import Analysis.Distribution (inferTyDist)
-import Analysis.Error 
+import Analysis.Error
 import Analysis.Expr (inferTy)
 import Analysis.FunDef (checkFunDef, checkFunDefs)
 import Control.Comonad.Identity (Identity (..))
 import Control.Comonad.Trans.Cofree (Cofree, headF)
 import Control.Monad (forM, when)
-import Control.Monad.Reader (MonadReader(local), ReaderT (runReaderT))
+import Control.Monad.Reader (MonadReader (local), ReaderT (runReaderT))
+import Control.Monad.State.Strict (MonadState (get), modify)
+import Control.Monad.Validate (MonadValidate)
 import Data.Functor.Compose (Compose (..))
 import Data.Functor.Foldable (Recursive (project))
 import Data.Text (Text)
-import Types (Ty, shape, broadcastsTo, shDiff)
-import Control.Monad.State.Strict (MonadState (get), modify)
 import Debug.Trace (trace)
+import Types (Ty, broadcastsTo, shDiff, shape)
 import Util (SrcSpan)
-import Control.Monad.Validate (MonadValidate)
 
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
@@ -71,29 +70,28 @@ checkModelStmt (ParamStmt name ty dist bij) =
     -- ensure bij' is a known bijector of the right type
     let dist' = Distribution dname args ty (bd, br_sh)
     return (ParamStmt name ty dist' bij')
-checkModelStmt (ObsStmt name dist) = do 
-    Distribution dname args ty' (bd, _) <- inferTyDist dist
-    ty <- lookupVar undefined name
-    -- let err = expectedGot ty ty'
-    when (not $ ty' `broadcastsTo` ty) $ doesNotMatchReturnType ty ty'
-    let br_sh = shDiff (shape ty') (shape ty)
-    let dist' = Distribution dname args ty (bd, br_sh)
-    return (ObsStmt name dist')
-
+checkModelStmt (ObsStmt name dist) = do
+  Distribution dname args ty' (bd, _) <- inferTyDist dist
+  ty <- lookupVar Nothing name
+  -- let err = expectedGot ty ty'
+  when (not $ ty' `broadcastsTo` ty) $ doesNotMatchReturnType ty ty'
+  let br_sh = shDiff (shape ty') (shape ty)
+  let dist' = Distribution dname args ty (bd, br_sh)
+  return (ObsStmt name dist')
 
 checkModel ::
   forall m.
   (MonadState Ctx m, MonadValidate TypeError m) =>
   Model SrcSpan ->
   m (Model Ty)
-checkModel (Model stmts) = Model <$> traverse go stmts 
-  where 
+checkModel (Model stmts) = Model <$> traverse go stmts
+  where
     go :: ModelStmt SrcSpan -> m (ModelStmt Ty)
-    go stmt = get >>= runReaderT (checkModelStmt stmt) >>= \x -> case x of 
-      ObsStmt _ _ -> pure x
-      (ParamStmt name ty dist bij) -> modify (insertTy name Param ty) >> pure x
-      (ValStmt name ty val) -> modify (insertTy name Val ty) >> pure x
-
+    go stmt =
+      get >>= runReaderT (checkModelStmt stmt) >>= \x -> case x of
+        ObsStmt _ _ -> pure x
+        (ParamStmt name ty dist bij) -> modify (insertTy name Param ty) >> pure x
+        (ValStmt name ty val) -> modify (insertTy name Val ty) >> pure x
 
 allSame :: Eq a => [a] -> Bool
 allSame xs = and $ zipWith (==) xs (tail xs)
@@ -107,4 +105,3 @@ checkLib (Library funs dists) = do
   funs' <- checkFunDefs funs
   dists' <- checkDistDefs dists
   return $ Library funs' dists'
-
