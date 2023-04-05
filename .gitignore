@@ -3,3 +3,4 @@ examples/
 cabal.project.local*
 lib/my_lib.stu
 lib/*.py
+flake.lock
