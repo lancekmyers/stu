@@ -1,12 +1,14 @@
-module Main  where 
-import Test.Hspec
-import Test.QuickCheck
-import Control.Exception (evaluate)
+module Main where
 
 import Broadcasting
+import Test.Tasty
 
 main :: IO ()
-main = hspec $ do
-  check_broadcastsTo
-  check_shDiff
-  check_unify
+main =
+  defaultMain $
+    testGroup
+      "Test Suite"
+      [ check_broadcastsTo,
+        check_shDiff,
+        check_unify
+      ]
