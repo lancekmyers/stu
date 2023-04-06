@@ -125,6 +125,9 @@ test-suite tests
   build-depends:       base ^>=4.16.1.0
                      , hspec ^>= 2.7.4
                      , QuickCheck >= 2.11
+                     , tasty
+                     , tasty-quickcheck
+                     , tasty-hspec
                      , vector
                      , text
                      , stu
