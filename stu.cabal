@@ -121,7 +121,9 @@ test-suite tests
   hs-source-dirs:      test
   main-is:             Suite.hs
   other-modules:
-        Broadcasting
+        Tests.Broadcasting,
+        Tests.Unification,
+        Tests.Shapes
   build-depends:       base ^>=4.16.1.0
                      , hspec ^>= 2.7.4
                      , QuickCheck >= 2.11
