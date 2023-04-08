@@ -143,16 +143,16 @@ shapeBroadcastsTo (MkShape sh) (MkShape sh')
 -- >>> shDiff' (MkShape [CardN 1, CardN 2]) (MkShape [CardN 3, CardN 1, CardN 2])
 -- Nothing
 -- >>> shDiff' (MkShape [CardN 3, CardN 1, CardN 2]) (MkShape [CardN 2])
--- Nothing
+-- Just [#3,#1]
 shDiff' :: Shape -> Shape -> Maybe Shape
 shDiff' (MkShape sh1) (MkShape sh2)
   | n1 < n2 = Nothing
-  | suffix == sh2 = Just . MkShape $ V.take (n2 - n1) sh1
+  | suffix == sh2 = Just . MkShape $ V.take (n1 - n2) sh1
   | otherwise = Nothing
   where
     n1 = V.length sh1
     n2 = V.length sh2
-    suffix = V.drop (n2 - n1) sh1
+    suffix = V.drop (n1 - n2) sh1
 
 shDiff :: Shape -> Shape -> Maybe Shape
 shDiff (MkShape sh') (MkShape sh) =
