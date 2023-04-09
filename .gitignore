@@ -7,5 +7,4 @@ flake.lock
 result
 result-data
 result-doc
-.direnv/flake-profile
-.direnv/flake-profile-1-link
+.direnv/
