@@ -2,6 +2,12 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
+# based on 
+# https://serokell.io/blog/practical-nix-flakes#writing-your-own
+
+# I found this helppful when enabling flag on the diagnose package 
+# https://discourse.nixos.org/t/haskell-how-to-override-cabal-flags/2990
+
 {
   description = "My haskell application";
 
