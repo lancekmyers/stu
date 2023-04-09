@@ -132,3 +132,16 @@ test-suite tests
                      , vector
                      , text
                      , stu
+
+benchmark bench
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      bench
+  main-is:             Bench.hs
+  ghc-options:   "-with-rtsopts=-A32m"
+  if impl(ghc >= 8.6)
+    ghc-options: -fproc-alignment=64
+  -- other-modules:
+  build-depends:       base ^>=4.16.1.0
+                , stu
+                , tasty
+                , tasty-bench
