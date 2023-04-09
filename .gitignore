@@ -4,3 +4,6 @@ cabal.project.local*
 lib/my_lib.stu
 lib/*.py
 flake.lock
+result
+result-data
+result-doc
