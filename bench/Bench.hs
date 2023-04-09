@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bench where
+module Main where
 
-import Test.Tasty.Bench
+import Test.Tasty.Bench (bgroup, defaultMain)
 
 main =
   defaultMain
