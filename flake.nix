@@ -26,6 +26,12 @@
         packages.${packageName} =
           haskellPackages.callCabal2nix packageName self rec {
             # Dependency overrides go here
+            diagnose = haskellPackages.diagnose.overrideAttrs (oldAttrs: rec {
+              buildInputs = [haskellPackages.megaparsec];
+              configureFlags = [
+                "-f megaparsec-compat"
+              ];
+            });
           };
 
         packages.default = self.packages.${system}.${packageName};
