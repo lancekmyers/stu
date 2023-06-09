@@ -8,14 +8,15 @@ It doesn't have a dozen slightly different ways to specify a model, it avoids bo
 
 I adore Stan, but there are a few points that always frustrate me. 
 
-    - Stan doesn't support the broadcasted arithmetic I've gotten so accustomed to from using numpy 
-    - Stan takes forever to compile models
-    - Most of the errors I end up with are shape errors that should be able to be detected statically, 
-    but instead I have to wait for the model to run before I can find 
-    out about that error 
-    - Stan's defaults are good, but occasionally I want more control over the sampler. 
-    I might want to use Elliptical Slice Sampling, or use Pathfinder to initialize NUTS, 
-    or use whatever the hot new MCMC methods are. In such cases, I have to rewrite my model in TFP. 
+- Stan doesn't support the broadcasted arithmetic I've gotten so accustomed to from using numpy 
+- Stan takes forever to compile models
+- Most of the errors I end up with are shape errors that should be able to be detected statically, 
+but instead I have to wait for the model to run before I can find 
+out about that error 
+- Stan's defaults are good, but occasionally I want more control over the sampler. 
+I might want to use elliptical slice sampling, or use pathfinder to initialize NUTS, 
+or use whatever the hot new MCMC methods are. 
+In such cases, I have to rewrite my model in TFP. 
 
 Stu tries to address these issues. 
 The guiding philosophy is that working with stu should be as pleasant as possible, with the compiler 
