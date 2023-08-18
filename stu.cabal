@@ -52,7 +52,6 @@ library
         prettyprinter,
         prettyprinter-ansi-terminal, 
         ansi-terminal,
-        fsnotify, 
         filepath, 
         directory,
         free, 
@@ -101,7 +100,7 @@ executable stu
         prettyprinter,
         prettyprinter-ansi-terminal, 
         ansi-terminal,
-        fsnotify,
+        
         filepath,
         directory,
         free,
