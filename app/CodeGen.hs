@@ -6,13 +6,13 @@
 module CodeGen where
 
 import AST
-  ( Bijector,
-    BijectorF (..),
+  ( Bijector(..),
     Distribution (..),
     Library (_funs),
     Model (..),
     ModelStmt (..),
     Program (Program),
+    Elaboration
   )
 import Analysis.Context (Ctx (dists))
 import CodeGen.Expr (cgExpr)
@@ -69,12 +69,12 @@ cgBijDict (Model stmts) = do
         Nothing -> error $ "This is a bug. Unknown dist " ++ T.unpack dname
     go _ = return Nothing
 
-cgBij :: Bijector a -> PyExp
-cgBij = fold (alg . tailF . runIdentity . getCompose)
+cgBij :: Bijector -> PyExp
+cgBij = alg
   where
-    alg :: BijectorF PyExp -> PyExp
+    alg :: Bijector -> PyExp
     alg (MkBij name args) = (tfb name) @@ (PyNum . Left <$> args)
-    alg (Chain bs) = tfb "Chain" @@ [PyList bs]
+    alg (Chain bs) = tfb "Chain" @@ [PyList . fmap alg $ bs]
 
 sample :: Maybe Shape -> PyExp -> PyExp
 sample Nothing dist = dist
@@ -99,7 +99,7 @@ independent (Just n) dist = batched
         [dist]
         [("reinterpreted_batch_ndims", PyNum $ Right n)]
 
-cgDistribution :: Distribution Ty -> PyExp
+cgDistribution :: Distribution Elaboration -> PyExp
 cgDistribution (Distribution name args _ (bd, br_sh)) =
   sample br_sh . independent bd $ tfd name @@ (cgExpr <$> args)
 
@@ -111,7 +111,7 @@ ld_tr name = PyBlock [ld, tr]
     ld = PyAssign (name <> "_tr") (PyMethod bij "forward" param)
     tr = PyAssign (name <> "_ld") (PyMethod bij "forward_log_det_jacobian" param)
 
-cgModelStmt :: ModelStmt Ty -> PyCode
+cgModelStmt :: ModelStmt Elaboration -> PyCode
 cgModelStmt (ParamStmt name ty dist _) = PyBlock [ld_tr name, lp]
   where
     param = PyIdent [] $ name <> "_tr"
@@ -126,7 +126,7 @@ cgModelStmt (ObsStmt name dist) = lp
         PyMethod (cgDistribution dist) "log_prob" [obs]
 cgModelStmt (ValStmt name _ x) = PyAssign (name <> "_val") $ cgExpr x
 
-cgModel :: forall m. CodeGenMonad m => Program Ty -> m PyCode
+cgModel :: forall m. CodeGenMonad m => Program Elaboration -> m PyCode
 cgModel (Program decls model@(Model stmts)) = do
   bijDict <- cgBijDict model
   return $ PyBlock [bijDict, mk_log_prob]
@@ -148,7 +148,7 @@ cgModel (Program decls model@(Model stmts)) = do
       PyDef (Just "jax.jit") "log_prob" ["params"] $
         PyBlock [PyBlock $ cgModelStmt <$> stmts, PyRet $ lpSum stmts]
 
-    lpSum :: [ModelStmt Ty] -> PyExp
+    lpSum :: [ModelStmt Elaboration] -> PyExp
     lpSum ((ParamStmt name _ _ _) : xs) =
       jnp "add"
         @@ [ jnp "add"
@@ -186,7 +186,7 @@ cgData = PyAssign "data" (obser_data !$ "__or__" $ [const_data])
     obser_data = map_jnp_array ("dict" @@ ["inf_obj" !. "observed_data"])
     const_data = map_jnp_array ("dict" @@ ["inf_obj" !. "constant_data"])
 
-cgProg :: forall m. CodeGenMonad m => Program Ty -> m PyCode
+cgProg :: forall m. CodeGenMonad m => Program Elaboration -> m PyCode
 cgProg prog = do
   model' <- cgModel prog
   return $
@@ -198,17 +198,17 @@ cgProg prog = do
         cgPriorSample prog
       ]
 
-writeProg :: forall m. CodeGenMonad m => Program Ty -> m Builder
+writeProg :: forall m. CodeGenMonad m => Program Elaboration -> m Builder
 writeProg prog = do
   prog' <- cgProg prog
   return $ runReader (prettyCode prog') 0
 
-writeLib :: forall m. CodeGenMonad m => Library Ty -> m Builder
+writeLib :: forall m. CodeGenMonad m => Library Elaboration -> m Builder
 writeLib lib = do
   prog' <- pure . PyBlock $ cgFunDef <$> (_funs lib)
   return $ runReader (prettyCode prog') 0
 
-cgPriorSampleGo :: (ModelStmt Ty) -> Int -> PyCode
+cgPriorSampleGo :: (ModelStmt Elaboration) -> Int -> PyCode
 cgPriorSampleGo (ObsStmt name dist) i = PyBlock []
 cgPriorSampleGo (ValStmt name _ exp) i = PyAssign (name <> "_val") $ cgExpr exp
 cgPriorSampleGo (ParamStmt name _ dist _) i =
@@ -220,7 +220,7 @@ cgPriorSampleGo (ParamStmt name _ dist _) i =
       PyAssign ("params['" <> name <> "']") $ PyIdent [] (name <> "_tr")
     ]
 
-cgPriorSample :: Program Ty -> PyCode
+cgPriorSample :: Program Elaboration -> PyCode
 cgPriorSample (Program _ (Model xs)) =
   PyDef Nothing "mk_prior_sample" ["inf_obj"] $
     PyBlock
@@ -266,7 +266,7 @@ cgPriorSample (Program _ (Model xs)) =
 
 -- | Generate predictive function
 -- python function given constant data and parameters, generate observed data
-cgPred :: Program Ty -> PyCode
+cgPred :: Program Elaboration -> PyCode
 cgPred (Program _ (Model xs)) =
   PyDef Nothing "mk_pred" ["inf_obj"] $
     PyBlock
@@ -299,7 +299,7 @@ cgPred (Program _ (Model xs)) =
 
     stmts = PyBlock $ zipWith go [0 ..] xs
 
-    go :: Int -> ModelStmt Ty -> PyCode
+    go :: Int -> ModelStmt Elaboration -> PyCode
     go i (ObsStmt name dist) =
       PyAssign ("data['" <> name <> "']") $
         ( cgDistribution dist

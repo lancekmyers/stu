@@ -7,10 +7,9 @@
 
 module Analysis.Context where
 
-import AST (Bijector, Decl (..), ExprF (VarF), VarDomain (..))
+import AST (Bijector, Decl (..), ExprF (VarF), Parsing, Name)
 import Analysis.Error 
 import Control.Monad.Except (MonadError (throwError), guard)
-import Control.Monad.State.Strict (MonadState (get, put), gets)
 import Control.Monad.Validate 
 import Data.Either (lefts, rights)
 import Data.Map.Strict (Map)
@@ -21,16 +20,16 @@ import qualified Data.Set as S
 import Data.Text (Text)
 import Types (FunctionTy, Ty(..), shape, Card (CardFV, CardBV, CardN), Shape (getVec))
 import qualified Data.Vector as V 
-import Control.Monad.State.Class (modify)
-import Control.Monad.Reader.Class (MonadReader (ask), asks)
+import Control.Monad.State.Class (MonadState, modify, get, put)
+import Control.Monad.Reader.Class (MonadReader, local, asks)
 import qualified Data.Text as T
 import Debug.Trace (trace)
 import Util (SrcSpan)
 
 data Ctx = Ctx
-  { vars :: Map Text (Ty, VarDomain),
+  { vars :: Map Name Ty,
     funs :: Map Text FunctionTy,
-    dists :: Map Text (FunctionTy, Bijector ()),
+    dists :: Map Text (FunctionTy, Bijector),
     knownCards :: Set Card
   } 
 instance Show Ctx where 
@@ -59,7 +58,7 @@ lookupVar loc name = do
   varCtx <- asks vars
   case M.lookup name varCtx of 
     Nothing -> unBoundVarIdent loc name $ M.keys varCtx
-    Just (Ty sh el _, _vd) -> return $ Ty sh el loc
+    Just (Ty sh el _) -> return $ Ty sh el loc
 
 lookupFun ::
   (MonadTyCtx m) =>
@@ -88,7 +87,7 @@ lookupDistDefaultBij ::
   (MonadTyCtx m) =>
   Maybe SrcSpan -> 
   Text ->
-  m (Bijector ())
+  m (Bijector)
 lookupDistDefaultBij loc name = do
   distsCtx <- asks dists
   case M.lookup name distsCtx of
@@ -96,18 +95,18 @@ lookupDistDefaultBij loc name = do
     Just (_, bij) -> return bij
 
 insertTy ::
-  Text ->
-  VarDomain ->
+  Name ->
   Ty  ->
   Ctx -> Ctx
-insertTy name vd ty (Ctx vars funs dists cards) = Ctx vars' funs dists cards
-  where vars' = M.insert name (ty, vd) vars
+insertTy name ty (Ctx vars funs dists cards) = Ctx vars' funs dists cards
+  where
+    vars' = M.insert name ty vars
   
 introArgs :: [(Text, Ty)] -> Ctx -> Ctx
 introArgs args (Ctx vars funs dists cards) 
   = Ctx (vars <> vars') funs dists cards
   where
-    vars' = M.fromList [ (x, (t, Bound)) | (x, t) <- args]
+    vars' = M.fromList args
 
 insertFun ::
   forall m.
@@ -125,7 +124,7 @@ insertDist ::
   (MonadState Ctx m) =>
   Text ->
   FunctionTy ->
-  Bijector () ->
+  Bijector ->
   m ()
 insertDist name fty bij = do
   Ctx vars funs dists cards <- get
@@ -135,10 +134,10 @@ insertDist name fty bij = do
 buildCtx :: [Decl] -> Ctx
 buildCtx decls = Ctx vars mempty mempty (S.map CardFV knownCards)
   where
-    vars :: Map Text (Ty, VarDomain)
+    vars :: Map Text Ty
     vars = M.fromList $ mapMaybe go decls
       where
-        go (DataDecl name ty) = Just (name, (ty, Data))
+        go (DataDecl name ty) = Just (name, ty)
         go _ = Nothing
     knownCards :: Set Text
     knownCards = S.fromList $ mapMaybe go decls
@@ -147,15 +146,16 @@ buildCtx decls = Ctx vars mempty mempty (S.map CardFV knownCards)
         go (FactorDecl name) = Just name
         go _ = Nothing
 
-annotateVarDomain :: (MonadTyCtx m) => SrcSpan -> ExprF a -> m (ExprF a)
-annotateVarDomain loc (VarF name _) = do
+-- is this doing the right thing
+annotateVarDomain :: (MonadTyCtx m) => SrcSpan -> ExprF Parsing a -> m (ExprF Parsing a)
+annotateVarDomain loc (VarF var) = do
   vars <- asks vars
-  case M.lookup name vars of
-    Nothing -> unBoundVarIdent (Just loc) name $ M.keys vars
-    Just (t, vd) -> return $ VarF name vd
+  case M.lookup var vars of
+    Nothing -> unBoundVarIdent (Just loc) var $ M.keys vars
+    Just t -> return $ VarF var
 annotateVarDomain loc x = return x
 
-ctxFromSigs :: [Either (Text, FunctionTy) (Text, FunctionTy, Bijector ())] -> Ctx
+ctxFromSigs :: [Either (Text, FunctionTy) (Text, FunctionTy, Bijector)] -> Ctx
 ctxFromSigs xs = Ctx mempty funs dists mempty
   where
     funs = M.fromList $ lefts xs
@@ -175,5 +175,8 @@ validateType ty@(Ty _ _ (Just loc)) = do
 introCards :: S.Set Card -> Ctx -> Ctx 
 introCards cs =  \ctx -> ctx {knownCards = S.union cs (knownCards ctx)}
 
-introCardsFromTy :: Ty -> Ctx -> Ctx
-introCardsFromTy = introCards . S.fromList . V.toList . getVec . shape 
+introCardsFromTys :: Foldable f => f Ty -> Ctx -> Ctx
+introCardsFromTys = introCards . foldMap go
+  where 
+    go :: Ty -> S.Set Card 
+    go = S.fromList . V.toList . getVec . shape

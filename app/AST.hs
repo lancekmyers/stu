@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -22,6 +23,16 @@ type Name = Text
 
 type FuncName = Text
 
+-- Phases of compilation
+data Parsing
+
+data Elaboration
+
+-- | Annotation associated with phase
+type family PhAnn a where 
+  PhAnn Parsing = SrcSpan
+  PhAnn Elaboration = Ty
+
 data BinOp
   = Add
   | Sub
@@ -34,18 +45,18 @@ instance Show BinOp where
   show Mul = "*"
   show Div = "/"
 
-data VarDomain
-  = Unknown
-  | Param
-  | Data
-  | Val
-  | Bound
-  | Local
-  deriving (Eq, Ord, Show)
+-- data VarDomain
+--   = Unknown
+--   | Param
+--   | Data
+--   | Val
+--   | Bound
+--   | Local
+--   deriving (Eq, Ord, Show)
 
-data ExprF a
+data ExprF ph a
   = ArithF BinOp a a
-  | VarF Name VarDomain
+  | VarF Name
   | FunAppF FuncName [a]
   | TransposeF a [Int]
   | FoldF FuncName a a
@@ -55,26 +66,25 @@ data ExprF a
   | LitArray [a]
   deriving (Generic, Functor, Foldable, Traversable)
 
-type Expr ann = Cofree ExprF ann
+type Expr ph = Cofree (ExprF ph) (PhAnn ph)
 
-type ExprSrc = Expr SrcSpan
+type ExprSrc = Expr Parsing
 
 type DistName = Text
 
-data Distribution ann
+data Distribution ph
   = Distribution
       DistName
-      [Expr ann]
-      ann
+      [Expr ph]
+      (PhAnn ph)
       (Maybe Int, Maybe Shape) --- nbatch_dims, sample_shape
   deriving ()
 
-data BijectorF a
+data Bijector 
   = MkBij Text [Double]
-  | Chain [a]
-  deriving (Generic, Functor, Foldable, Traversable)
+  | Chain [Bijector]
+  deriving (Show, Eq, Ord)
 
-type Bijector ann = Cofree BijectorF ann
 
 data Decl
   = CardDecl Name
@@ -85,60 +95,60 @@ data Decl
 -- include shape that is being broadcast over?
 
 -- | Statements involved in the model
-data ModelStmt ann
-  = ValStmt Name Ty (Expr ann)
-  | ParamStmt Name Ty (Distribution ann) (Maybe (Bijector ann))
-  | ObsStmt Name (Distribution ann)
+data ModelStmt ph
+  = ValStmt Name Ty (Expr ph)
+  | ParamStmt Name Ty (Distribution ph) (Maybe Bijector)
+  | ObsStmt Name (Distribution ph)
 
-data Model ann
-  = Model [ModelStmt ann]
+data Model ph
+  = Model [ModelStmt ph]
 
-data Program ann = Program
+data Program ph = Program
   { decls :: [Decl],
-    model :: Model ann
+    model :: Model ph
   }
 
 ---
 
-data BijDef a = BijDef (FunDef a) (FunDef a) (FunDef a)
+data BijDef ph = BijDef (FunDef ph) (FunDef ph) (FunDef ph)
 
 -- fwd inv ldj
 
-data FunDef ann = FunDef
+data FunDef ph = FunDef
   { _funName :: Text,
     _args :: [(Text, Ty)],
     _ret :: Ty,
-    _body :: (FunBody ann)
+    _body :: (FunBody ph)
   }
 
 instance Show (FunDef a) where
   show (FunDef name args _ _) = show name ++ ' ' : show args
 
-data DistDef ann = DistDef
+data DistDef ph = DistDef
   { _distName :: Text,
     _params :: [(Text, Ty)],
     _eventTy :: Ty,
-    _lpdf :: FunDef ann,
-    _sample :: SampleBody ann,
-    _bij :: Bijector ann
+    _lpdf :: FunDef ph,
+    _sample :: SampleBody ph,
+    _bij :: Bijector
   }
 
-data FunBody ann
-  = LetPrimIn Text Ty (PrimApp ann) (FunBody ann)
-  | FunLetIn Text Ty (Expr ann) (FunBody ann)
-  | FunRet (Expr ann)
+data FunBody ph
+  = LetPrimIn Text Ty (PrimApp ph) (FunBody ph)
+  | FunLetIn Text Ty (Expr ph) (FunBody ph)
+  | FunRet (Expr ph)
 
-data SampleBody ann
-  = SampleIn Text Ty (Distribution ann) (SampleBody ann)
-  | SampleUnifIn Text Ty (SampleBody ann)
-  | SampleLetIn Text Ty (Expr ann) (SampleBody ann)
-  | SampleRet (Expr ann)
+data SampleBody ph
+  = SampleIn Text Ty (Distribution ph) (SampleBody ph)
+  | SampleUnifIn Text Ty (SampleBody ph)
+  | SampleLetIn Text Ty (Expr ph) (SampleBody ph)
+  | SampleRet (Expr ph)
 
-data Library a = Library
-  { _funs :: [FunDef a],
-    _dists :: [DistDef a]
+data Library ph = Library
+  { _funs :: [FunDef ph],
+    _dists :: [DistDef ph]
   }
 
-data PrimApp a = PrimApp [Text] [Expr a]
+data PrimApp ph = PrimApp [Text] [Expr ph]
 
 data PrimSample = PrimUniformRNG | PrimNormalRNG

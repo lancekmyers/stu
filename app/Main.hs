@@ -8,7 +8,7 @@
 
 module Main where
 
-import AST (Library, Program (Program))
+import AST (Library, Program (Program), Elaboration, Parsing)
 import Analysis
   ( Ctx,
     buildCtx,
@@ -127,7 +127,7 @@ options =
 
 -- type Err = Report (Doc AnsiStyle)
 
-parseFile :: FilePath -> ExceptT (Diagnostic Text) IO (Text, Program SrcSpan)
+parseFile :: FilePath -> ExceptT (Diagnostic Text) IO (Text, Program Parsing)
 parseFile fname = do
   fcontents <- lift $ TIO.readFile fname
   case runParser parseProgram fname fcontents of
@@ -136,7 +136,7 @@ parseFile fname = do
         in throwError $ addFile diag fname (T.unpack fcontents) 
     Right prog -> return $ (fcontents, prog)
 
-parseLibFile :: FilePath -> ExceptT (Diagnostic Text) IO (Text, Library SrcSpan)
+parseLibFile :: FilePath -> ExceptT (Diagnostic Text) IO (Text, Library Parsing)
 parseLibFile fname = do
   fcontents <- lift $ TIO.readFile fname
   case runParser parseLibrary fname fcontents of
@@ -156,13 +156,13 @@ parseSig fname = do
 
 checkProgram
   :: Monad m 
-  =>  Ctx -> Program SrcSpan -> ValidateT TypeError m (Program Ty, Ctx)
+  =>  Ctx -> Program Parsing -> ValidateT TypeError m (Program Elaboration, Ctx)
 checkProgram ctx_std (Program decls model) = do
   let ctx = ctx_std <> buildCtx decls
   (model, ctx') <- runStateT (checkModel model) ctx
   return $ (Program decls model, ctx)
 
-checkLibrary :: Monad m => Library SrcSpan -> ValidateT TypeError m (Library Ty, Ctx)
+checkLibrary :: Monad m => Library Parsing -> ValidateT TypeError m (Library Elaboration, Ctx)
 checkLibrary lib = do
   (lib', ctx') <- runStateT (checkLib lib) mempty
   return $ (lib', ctx')

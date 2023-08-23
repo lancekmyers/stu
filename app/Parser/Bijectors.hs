@@ -1,7 +1,6 @@
 module Parser.Bijectors where
 
-import AST (Bijector, BijectorF (..))
-import Control.Comonad.Trans.Cofree (CofreeF ((:<)), cofree)
+import AST (Bijector(..), Parsing)
 import Parser.Util (Parser, lexeme, pIdentUpper, parens, symbol)
 import Text.Megaparsec
   ( SourcePos,
@@ -14,21 +13,22 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Util (SrcSpan, mkPos)
 
 -- parsing Bijectors
-pBijNamed :: Parser (Bijector SrcSpan)
+pBijNamed :: Parser (SrcSpan, Bijector)
 pBijNamed = do
   from <- getSourcePos
   bijName <- pIdentUpper
   bijArgs <- parens $ (lexeme L.float) `sepBy` symbol ","
   to <- getSourcePos
-  return . cofree $ (mkPos from to) :< (MkBij bijName bijArgs)
+  return $ (mkPos from to, MkBij bijName bijArgs)
 
-pBijChain :: Parser (Bijector SrcSpan)
+pBijChain :: Parser (SrcSpan, Bijector)
 pBijChain = do
   from <- getSourcePos
   symbol "Chain"
-  bijs <- between (symbol "[") (symbol "]") $ pBij `sepBy` symbol ","
+  bijs <- fmap snd <$> 
+    (between (symbol "[") (symbol "]") $ pBij `sepBy` symbol ",")
   to <- getSourcePos 
-  return . cofree $ (mkPos from to) :< (Chain bijs)
+  return $ (mkPos from to, Chain bijs)
 
-pBij :: Parser (Bijector SrcSpan)
+pBij :: Parser (SrcSpan, Bijector)
 pBij = pBijChain <|> pBijNamed

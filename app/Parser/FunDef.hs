@@ -1,6 +1,6 @@
 module Parser.FunDef (pFunDef, pFunBody) where
 
-import AST (FunBody (..), FunDef (FunDef), PrimApp (..))
+import AST (FunBody (..), FunDef (FunDef), PrimApp (..), Parsing)
 import Data.Text (Text)
 import Parser.Expr (pExpr)
 import Parser.Types (pTy)
@@ -21,7 +21,7 @@ pArg = do
 
 -- >>> const () <$> runParser pFunDef "" "fun foo(): []real\nbegin \n\tret 4; end"
 -- Right ()
-pFunDef :: Parser (FunDef SrcSpan)
+pFunDef :: Parser (FunDef Parsing)
 pFunDef = do
   symbol "fun"
   name <- lexeme pIdent
@@ -33,12 +33,12 @@ pFunDef = do
   symbol "end"
   return $ FunDef name args ret body
 
-pFunBody :: Parser (FunBody SrcSpan)
+pFunBody :: Parser (FunBody Parsing)
 pFunBody = choice [pLetIn, pLetPrimIn, pRet]
 
 -- >>> fmap (const ()) $ runParser pLetIn "" "let x : []real = sin(x); ret x;"
 -- Right ()
-pLetIn :: Parser (FunBody SrcSpan)
+pLetIn :: Parser (FunBody Parsing)
 pLetIn = do
   symbol "let"
   name <- lexeme pIdent
@@ -52,7 +52,7 @@ pLetIn = do
 
 -- >>> fmap (const ()) $ runParser pLetPrimIn "" "plet x : []real = %sin(x); ret x;"
 -- Right ()
-pLetPrimIn :: Parser (FunBody SrcSpan)
+pLetPrimIn :: Parser (FunBody Parsing)
 pLetPrimIn = do
   symbol "%let"
   name <- lexeme pIdent
@@ -64,7 +64,7 @@ pLetPrimIn = do
   rest <- pFunBody
   return (LetPrimIn name ty val rest)
 
-pRet :: Parser (FunBody SrcSpan)
+pRet :: Parser (FunBody Parsing)
 pRet = do
   symbol "ret"
   val <- pExpr
@@ -73,7 +73,7 @@ pRet = do
 
 -- >>> const () <$> runParser pPrimApp "" "%sin(x, y)"
 -- Right ()
-pPrimApp :: Parser (PrimApp SrcSpan)
+pPrimApp :: Parser (PrimApp Parsing)
 pPrimApp = do
   char '%'
   name <- pIdent `sepBy` (symbol ".")
