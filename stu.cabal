@@ -59,7 +59,8 @@ library
         comonad, 
         data-fix, 
         diagnose, 
-        monad-validate
+        monad-validate,
+        optics
 
     hs-source-dirs:   app
     default-language: Haskell2010
@@ -100,7 +101,7 @@ executable stu
         prettyprinter,
         prettyprinter-ansi-terminal, 
         ansi-terminal,
-        
+        optics,
         filepath,
         directory,
         free,
