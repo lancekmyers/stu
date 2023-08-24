@@ -14,7 +14,14 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import Error.Diagnose hiding (pretty)
+import Error.Diagnose
+    ( Position(Position),
+      def,
+      addReport,
+      Diagnostic,
+      Marker(This, Where),
+      Note(Note, Hint),
+      Report(Err) )
 import Prettyprinter
   ( Doc,
     Pretty (pretty),
