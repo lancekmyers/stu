@@ -54,17 +54,33 @@ instance Show BinOp where
 --   | Local
 --   deriving (Eq, Ord, Show)
 
-data ExprF ph a
-  = ArithF BinOp a a
-  | VarF Name
-  | FunAppF FuncName [a]
-  | TransposeF a [Int]
-  | FoldF FuncName a a
-  | ScanF FuncName a a -- mul e xs
-  | LitReal Double
-  | LitInt Int
-  | LitArray [a]
-  deriving (Generic, Functor, Foldable, Traversable)
+data ExprF ph a where 
+  ArithF 
+    :: BinOp -> a -> a -> ExprF ph a
+  VarF 
+    :: Name -> ExprF ph a
+  -- would like to annotate with extra info during 
+  FunAppF 
+    :: FuncName -> [a] -> ExprF ph a
+  TransposeF 
+    :: a -> [Int] -> ExprF ph a
+  FoldF 
+    :: FuncName -> a -> a -> ExprF ph a
+  -- mul e xs
+  ScanF 
+    :: FuncName -> a -> a -> ExprF ph a
+  BroadcastF
+    :: Shape -> Shape -> a -> ExprF ph a
+  LitReal 
+    :: Double -> ExprF ph a
+  LitInt 
+    :: Int -> ExprF ph a
+  LitArray 
+    :: [a] -> ExprF ph a
+
+deriving instance Functor (ExprF ph)
+deriving instance Foldable (ExprF ph)
+deriving instance Traversable (ExprF ph)
 
 type Expr ph = Cofree (ExprF ph) (PhAnn ph)
 
