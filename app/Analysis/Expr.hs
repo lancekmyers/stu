@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Analysis.Expr where
 
@@ -21,7 +22,7 @@ import Analysis.Error
     otherErr,
   )
 import Control.Comonad.Identity (Identity (Identity, runIdentity))
-import Control.Comonad.Trans.Cofree (CofreeF (..), Cofree, CofreeT (..), headF)
+import Control.Comonad.Trans.Cofree (CofreeF (..), Cofree, CofreeT (..), headF, runCofree)
 import Control.Monad (when)
 import Data.Functor.Compose (Compose (Compose, getCompose))
 import Data.Functor.Foldable
@@ -44,11 +45,18 @@ import Types
     shToList,
     shUncons,
     shape,
-    unify,
+    unify, Shape,
   )
 import Util (SrcSpan, joinSrcSpan)
 import Optics (_2, over)
 
+
+br :: Expr Elaboration -> Shape -> Expr Elaboration
+br expr sh_to
+  | sh_from == sh_to = expr
+  | otherwise = mkCofree (Ty sh_to el Nothing) (BroadcastF sh_from sh_to expr)
+  where
+    (Ty sh_from el _) :< x = runIdentity . runCofreeT $ expr
 
 -- inferTy ::
 --   forall m.
@@ -156,41 +164,42 @@ inferTy :: MonadTyCtx m => Expr Parsing -> m (Expr Elaboration)
 inferTy = fmap snd . cataA (alg' . runIdentity . getCompose)
 
 alg' :: MonadTyCtx m
-  => CofreeF 
-      (ExprF Parsing) 
-      SrcSpan  
+  => CofreeF
+      (ExprF Parsing)
+      SrcSpan
       (m (SrcSpan, Expr Elaboration))
   -> m (SrcSpan, Expr Elaboration)
-alg' (loc :< x) = case fmap (over _2 (runIdentity . runCofreeT)) <$>  x of 
-  VarF name -> do 
-    ty <- lookupVar (Just loc) name 
+alg' (loc :< x) = case fmap (over _2 (runIdentity . runCofreeT)) <$>  x of
+  VarF name -> do
+    ty <- lookupVar (Just loc) name
     let var = VarF name :: ExprF Elaboration (Expr Elaboration)
-    return (loc, CofreeT . Identity $ ty :< var)  
+    return (loc, CofreeT . Identity $ ty :< var)
   -- 
-  ArithF binop lhs rhs -> do 
-    (loc_lhs, ty_lhs :< x_lhs) <- lhs 
-    (loc_rhs, ty_rhs :< x_rhs) <- rhs 
-    let Ty sh_lhs el_lhs _ = ty_lhs 
+  ArithF binop lhs rhs -> do
+    (loc_lhs, ty_lhs :< x_lhs) <- lhs
+    (loc_rhs, ty_rhs :< x_rhs) <- rhs
+    let Ty sh_lhs el_lhs _ = ty_lhs
     let Ty sh_rhs el_rhs _ = ty_rhs
     when (el_lhs /= el_rhs) $ binOpErr binop loc ty_lhs ty_rhs
     case broadcast sh_lhs sh_rhs of
       Nothing -> binOpErr binop loc ty_lhs ty_rhs
-      Just sh -> do 
+      Just sh -> do
         let ty = Ty sh el_lhs Nothing
-        let rhs = mkCofree ty_lhs x_rhs 
-        let lhs = mkCofree ty_lhs x_lhs 
+        let rhs = br (mkCofree ty_lhs x_rhs) sh
+        let lhs = br (mkCofree ty_lhs x_lhs) sh
         return $ (loc, mkCofree ty (ArithF binop lhs rhs))
   -- 
   (FunAppF fname args) -> do
     fty <- lookupFun (Just loc) fname
-    args' <- sequenceA args 
+    args' <- sequenceA args
     let arg_tys = map (headF . snd) args'
-    let args'' = map (CofreeT . Identity . snd) args'
+    let arg_shapes = map shape arg_tys
+    let args'' = zipWith br (CofreeT . Identity . snd <$> args') arg_shapes
     case unify arg_tys fty of
       Left _ -> badFunApp fname loc arg_tys fty
       Right (_, ret) -> return (loc, mkCofree ret $ FunAppF fname args'')
   --
-  (TransposeF x perm) -> do 
+  (TransposeF x perm) -> do
     (loc_x, (Ty sh elTy _) :< x)  <- x
     let isPerm = sort perm == [0 .. shRank sh]
     let ty = Ty (shFromList $ (shToList sh !!) <$> perm) elTy Nothing
@@ -233,6 +242,7 @@ alg' (loc :< x) = case fmap (over _2 (runIdentity . runCofreeT)) <$>  x of
       FunctionTy [(_, t1), (_, t2)] ret_ty
         | ret_ty == t1 -> case x0_sh `shDiff'` (shape t1) of
             Nothing -> invalidScan loc fty x0_ty xs_ty
+            -- p is the shape that is mapped over
             Just p -> pure $ p <> shape t2
         | otherwise -> invalidScan loc fty x0_ty xs_ty
       _ -> invalidScan loc fty x0_ty xs_ty
@@ -245,27 +255,27 @@ alg' (loc :< x) = case fmap (over _2 (runIdentity . runCofreeT)) <$>  x of
       Left _ -> otherErr "The scanning function has the wrong type"
     let ty = Ty (xs_sh <> ret_sh) ret_el (Just loc)
     let xs'' = mkCofree xs_ty xs'
-    let x0'' = mkCofree x0_ty x0' 
+    let x0'' = mkCofree x0_ty x0'
     return $ (loc, mkCofree ty $ ScanF fname x0'' xs'')
 
-  (LitReal x) -> do 
-    let ty = Ty [] REAL Nothing 
+  (LitReal x) -> do
+    let ty = Ty [] REAL Nothing
     return $ (loc, mkCofree ty $ LitReal x)
-  (LitInt x) -> do 
-    let ty = Ty [] INT Nothing 
+  (LitInt x) -> do
+    let ty = Ty [] INT Nothing
     return $ (loc, mkCofree ty $ LitInt x)
   (LitArray [])  -> otherErr "Cannot infer type of empty tensor"
   (LitArray xs) -> do
-    xs' <- sequenceA xs 
+    xs' <- sequenceA xs
     let xs_tys = map (headF . snd) xs'
     let xs'' = map (CofreeT . Identity . snd) xs'
 
-    case and $ zipWith (==) xs_tys (tail xs_tys) of 
-      False -> nonHomogenousArrayLit xs_tys
-      True -> do 
-        let (Ty sh el _) = head xs_tys
-        let ty = Ty (shCons (CardN $ length xs_tys) sh) el Nothing
-        return $ (loc, mkCofree ty $ LitArray xs'')
+    if and $ zipWith (==) xs_tys (tail xs_tys) 
+    then do
+      let (Ty sh el _) = head xs_tys
+      let ty = Ty (shCons (CardN $ length xs_tys) sh) el Nothing
+      return $ (loc, mkCofree ty $ LitArray xs'') 
+    else nonHomogenousArrayLit xs_tys
 
 
 mkCofree a x =  CofreeT . Identity $ (a :< x)
