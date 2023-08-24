@@ -14,9 +14,9 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import Data.Default (def)
 import Error.Diagnose
     ( Position(Position),
-      def,
       addReport,
       Diagnostic,
       Marker(This, Where),

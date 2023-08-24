@@ -60,7 +60,8 @@ library
         data-fix, 
         diagnose, 
         monad-validate,
-        optics
+        optics, 
+        data-default
 
     hs-source-dirs:   app
     default-language: Haskell2010
@@ -109,7 +110,8 @@ executable stu
         comonad,
         diagnose, 
         monad-validate,
-        stu
+        stu, 
+        data-default
 
 
     hs-source-dirs:   app
