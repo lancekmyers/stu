@@ -176,7 +176,7 @@ validateFileNames
   :: (FilePath, Maybe FilePath) 
   -> ExceptT (Diagnostic Text)  IO (FilePath, FilePath)
 validateFileNames (inFileName, outFileName) 
-  = withExceptT (addReport def) $ do
+  = withExceptT (addReport mempty) $ do
   let fname = inFileName
   let out_fname = fromMaybe (fname -<.> ".py") outFileName
 
@@ -265,7 +265,10 @@ main = do
     Left err -> error_printer isTTY err
     Right foo -> return ()
   where
-    error_printer ispretty = printDiagnostic stdout ispretty ispretty 2 defaultStyle   
+    error_printer False = 
+      printDiagnostic stdout WithoutUnicode (TabSize 2) defaultStyle
+    error_printer True = 
+      printDiagnostic stdout WithUnicode (TabSize 2) defaultStyle   
     opts =
       info
         (options <**> helper)

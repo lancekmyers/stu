@@ -14,7 +14,6 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import Data.Default (def)
 import Error.Diagnose
     ( Position(Position),
       addReport,
@@ -48,7 +47,7 @@ import Util (SrcSpan)
 type TypeError = Diagnostic T.Text
 
 mkDiagnostic :: Report msg -> Diagnostic msg
-mkDiagnostic = addReport def
+mkDiagnostic = addReport mempty
 
 badFunApp ::
   MonadValidate TypeError m =>
