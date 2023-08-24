@@ -20,7 +20,7 @@ import Analysis.Expr (inferTy)
 import Analysis.FunDef (checkFunDef, checkFunDefs)
 import Control.Comonad.Identity (Identity (runIdentity))
 import Control.Comonad.Trans.Cofree (Cofree, headF)
-import Control.Monad (when)
+import Control.Monad (when, unless)
 import Control.Monad.Reader (MonadReader (ask), runReaderT)
 import Control.Monad.Reader.Class (MonadReader (local))
 import Control.Monad.State.Strict (MonadState (get))
@@ -36,7 +36,7 @@ cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
 checkDistDefs :: forall m. (MonadValidate TypeError m, MonadState Ctx m) => [DistDef Parsing] -> m [DistDef Elaboration]
-checkDistDefs dists = traverse go dists
+checkDistDefs = traverse go
   where
     go :: DistDef Parsing -> m (DistDef Elaboration)
     go dist = do
@@ -69,7 +69,7 @@ checkSample (SampleIn name ty dist rest) = local (insertTy name  ty) $ do
   validateType ty
   dist'@(Distribution _ _ ty' batch_info) <- inferTyDist dist
   -- let err = expectedGot ty ty'
-  when (not $ ty' `broadcastsTo` ty) $ doesNotMatchDeclaredType ty ty'
+  unless (ty' `broadcastsTo` ty) $ doesNotMatchDeclaredType ty ty'
   (eventTy, rest') <- checkSample rest
   return (eventTy, SampleIn name ty dist' rest')
 checkSample (SampleUnifIn name ty rest) = local (insertTy name  ty) $ do
@@ -81,6 +81,6 @@ checkSample (SampleLetIn name ty val rest) = do
   val' <- inferTy val
   let ty' = cofreeHead val'
   -- let err = expectedGot ty ty'
-  when (not $ ty' `broadcastsTo` ty) $ doesNotMatchDeclaredType ty ty'
+  unless (ty' `broadcastsTo` ty) $ doesNotMatchDeclaredType ty ty'
   (eventTy, rest') <- local (insertTy name ty) $ checkSample rest
   return (eventTy, SampleLetIn name ty val' rest')

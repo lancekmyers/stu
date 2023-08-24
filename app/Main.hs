@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE 
-    TypeApplications
-  , MultiParamTypeClasses
+{-# LANGUAGE MultiParamTypeClasses
   , PartialTypeSignatures
   , FlexibleInstances #-}
 
@@ -79,6 +77,7 @@ import Error.Diagnose
 import Error.Diagnose.Compat.Megaparsec
 import Control.Monad.Validate (validateToErrorWith, ValidateT)
 import System.IO (hIsTerminalDevice, stdin)
+import Control.Monad (unless)
 
 
 data Options
@@ -93,13 +92,17 @@ data Options
 options :: Parser Options
 options =
   subparser $
-    (command "build" (info buildOptions $ progDesc "Build a stu model"))
-      <> (command "check" (info checkOptions $ progDesc "Check a stu model without building"))
-      <> (command "lib" (info libOptions $ progDesc "Check a stu library and compile"))
+    command "build" 
+      (info buildOptions $ progDesc "Build a stu model")
+      <> command "check" 
+          (info checkOptions $ progDesc "Check a stu model without building")
+      <> command "lib" 
+            (info libOptions $ progDesc "Check a stu library and compile")
   where
     buildOptions =
       BuildOptions
-        <$> (argument str (metavar "MODEL" <> help "File containing model to compile"))
+        <$> argument str 
+          (metavar "MODEL" <> help "File containing model to compile")
         <*> optional
           ( strOption
               ( long "output"
@@ -110,11 +113,13 @@ options =
           )
     checkOptions =
       CheckOptions
-        <$> (argument str (metavar "MODEL" <> help "File containing model to compile"))
+        <$> argument str 
+          (metavar "MODEL" <> help "File containing model to compile")
 
     libOptions =
       LibOptions
-        <$> (argument str (metavar "LIBRARY" <> help "File containing librar"))
+        <$> argument str 
+          (metavar "LIBRARY" <> help "File containing librar")
 
 
 {-
@@ -134,7 +139,7 @@ parseFile fname = do
     Left bundle -> 
         let diag = errorDiagnosticFromBundle Nothing "Parse error" Nothing bundle 
         in throwError $ addFile diag fname (T.unpack fcontents) 
-    Right prog -> return $ (fcontents, prog)
+    Right prog -> return (fcontents, prog)
 
 parseLibFile :: FilePath -> ExceptT (Diagnostic Text) IO (Text, Library Parsing)
 parseLibFile fname = do
@@ -143,7 +148,7 @@ parseLibFile fname = do
     Left bundle -> 
         let diag = errorDiagnosticFromBundle Nothing "Parse error" Nothing bundle 
         in throwError $ addFile diag fname (T.unpack fcontents) 
-    Right lib -> return $ (fcontents, lib)
+    Right lib -> return (fcontents, lib)
 
 parseSig :: FilePath -> ExceptT (Diagnostic Text) IO Ctx
 parseSig fname = do
@@ -160,12 +165,12 @@ checkProgram
 checkProgram ctx_std (Program decls model) = do
   let ctx = ctx_std <> buildCtx decls
   (model, ctx') <- runStateT (checkModel model) ctx
-  return $ (Program decls model, ctx)
+  return (Program decls model, ctx)
 
 checkLibrary :: Monad m => Library Parsing -> ValidateT TypeError m (Library Elaboration, Ctx)
 checkLibrary lib = do
   (lib', ctx') <- runStateT (checkLib lib) mempty
-  return $ (lib', ctx')
+  return (lib', ctx')
 
 validateFileNames 
   :: (FilePath, Maybe FilePath) 
@@ -178,11 +183,11 @@ validateFileNames (inFileName, outFileName)
   case takeExtension fname of
     ".stu" -> pure ()
     ext -> throwError $ Err Nothing
-      ("Expected a '.stu' file, got: '" <> (T.pack ext) <> "'")
+      ("Expected a '.stu' file, got: '" <> T.pack ext <> "'")
       [] []
 
   file_exists <- liftIO $ doesFileExist fname
-  when (not file_exists) . throwError $ Err 
+  unless file_exists . throwError $ Err 
     Nothing
     "File does not exist"
     [] []
@@ -214,7 +219,7 @@ main' (BuildOptions inFileName outFileName) = do
   (progChecked, ctx) <- handler $ checkProgram std_lib prog
 
   liftIO . putDoc $
-    (annotate (color Green) $ "Success")
+    annotate (color Green) $ "Success"
       <+> "checked"
       <+> pretty fname <> line
 
@@ -233,7 +238,7 @@ main' (CheckOptions inFileName) = do
   progChecked <- handler $ checkProgram std_lib prog
 
   liftIO . putDoc $
-    (annotate (color Green) $ "Success")
+    annotate (color Green) "Success"
       <+> "checked"
       <+> pretty fname <> line
 main' (LibOptions libFile) = do

@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Parser.DistDef where
 
@@ -63,7 +64,7 @@ pSample = do
   return body
 
 pSampleBody :: Parser (SampleBody Parsing)
-pSampleBody = choice ([pLetIn, pSampleIn, pRet, pSampleUnif] :: [_])
+pSampleBody = choice @[] [pLetIn, pSampleIn, pRet, pSampleUnif]
 
 pLetIn :: Parser (SampleBody Parsing)
 pLetIn = do
