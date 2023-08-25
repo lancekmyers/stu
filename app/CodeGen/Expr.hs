@@ -42,6 +42,8 @@ cgExpr = cata (\(Compose (Identity (ty :< e))) -> go ty e)
     go _ (LitReal x) = PyNum (Left x)
     go _ (LitArray xs) = PyList xs
     go _ (VarF name) = PyIdent [] ("_" <> name)
+    -- no generation of explicit broadcasts
+    go t (BroadcastF sh sh' x) = x
     -- go _ (VarF (BoundVar name)) = PyIdent [] ("_bd_" <> name)
     -- go _ (VarF (ValVar name))   = PyIdent [] (name <> "_val")
     -- go _ (VarF (DataVar name))  = PyGet (PyIdent [] "data") (PyStr name)
