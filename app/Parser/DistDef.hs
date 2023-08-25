@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Parser.DistDef where
 
-import AST (DistDef (DistDef), FunDef (FunDef), SampleBody (..))
+import AST (DistDef (DistDef), FunDef (FunDef), SampleBody (..), Parsing)
 import Data.Text (Text)
 import Parser.Bijectors (pBij)
 import Parser.Distribution (pDistribution)
@@ -31,7 +32,7 @@ pArg = do
   ty <- pTy
   return (name, ty)
 
-pDistDef :: Parser (DistDef SrcSpan)
+pDistDef :: Parser (DistDef Parsing)
 pDistDef = do
   symbol "dist"
   name <- lexeme pIdentUpper
@@ -41,12 +42,12 @@ pDistDef = do
   symbol "begin"
   lpdf <- pLPDF name args eventTy
   sampler <- pSample 
-  bij <- pBij
+  (_, bij) <- pBij
   symbol "end"
 
   return $ DistDef name args eventTy lpdf sampler bij
 
-pLPDF :: Text -> [(Text, Ty)] -> Ty -> Parser (FunDef SrcSpan)
+pLPDF :: Text -> [(Text, Ty)] -> Ty -> Parser (FunDef Parsing)
 pLPDF distName args ty = do
   symbol "lpdf"
   name <- parens pIdent
@@ -55,17 +56,17 @@ pLPDF distName args ty = do
   symbol "end"
   return $ FunDef ("lpdf_" <> distName) ((name, ty) : args) (Ty [] REAL Nothing) body
 
-pSample :: Parser (SampleBody SrcSpan)
+pSample :: Parser (SampleBody Parsing)
 pSample = do
   symbol "sample"
   body <- pSampleBody
   symbol "end"
   return body
 
-pSampleBody :: Parser (SampleBody SrcSpan)
-pSampleBody = choice ([pLetIn, pSampleIn, pRet, pSampleUnif] :: [_])
+pSampleBody :: Parser (SampleBody Parsing)
+pSampleBody = choice @[] [pLetIn, pSampleIn, pRet, pSampleUnif]
 
-pLetIn :: Parser (SampleBody SrcSpan)
+pLetIn :: Parser (SampleBody Parsing)
 pLetIn = do
   symbol "let"
   name <- lexeme pIdent
@@ -77,7 +78,7 @@ pLetIn = do
   rest <- pSampleBody
   return (SampleLetIn name ty val rest)
 
-pSampleIn :: Parser (SampleBody SrcSpan)
+pSampleIn :: Parser (SampleBody Parsing)
 pSampleIn = do
   symbol "gen"
   name <- lexeme pIdent
@@ -89,7 +90,7 @@ pSampleIn = do
   rest <- pSampleBody
   return $ SampleIn name ty dist rest
 
-pSampleUnif :: Parser (SampleBody SrcSpan)
+pSampleUnif :: Parser (SampleBody Parsing)
 pSampleUnif = do
   symbol "unif"
   name <- lexeme pIdent
@@ -99,7 +100,7 @@ pSampleUnif = do
   rest <- pSampleBody
   return $ SampleUnifIn name ty rest
 
-pRet :: Parser (SampleBody SrcSpan)
+pRet :: Parser (SampleBody Parsing)
 pRet = do
   symbol "ret"
   val <- pExpr

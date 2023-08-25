@@ -8,6 +8,7 @@ import AST
     Model (..),
     ModelStmt (..),
     Program (Program),
+    Parsing
   )
 import Data.Text (Text)
 import Parser.Bijectors (pBij)
@@ -57,7 +58,7 @@ pDataDecl = do
   semi
   return $ DataDecl name ty
 
-pValStmt :: Parser (ModelStmt SrcSpan)
+pValStmt :: Parser (ModelStmt Parsing)
 pValStmt = do
   symbol "val"
   name <- lexeme pIdent
@@ -68,7 +69,7 @@ pValStmt = do
   semi
   return $ ValStmt name ty val
 
-pParamStmt :: Parser (ModelStmt SrcSpan)
+pParamStmt :: Parser (ModelStmt Parsing)
 pParamStmt = do
   symbol "param"
   name <- lexeme pIdent
@@ -76,11 +77,11 @@ pParamStmt = do
   ty <- pTy
   sym
   dist <- pDistribution
-  bij <- optional (symbol "via" >> pBij)
+  bij <- optional (symbol "via" >> (snd <$> pBij))
   semi
   return $ ParamStmt name ty dist bij
 
-pObsStmt :: Parser (ModelStmt SrcSpan)
+pObsStmt :: Parser (ModelStmt Parsing)
 pObsStmt = do
   symbol "obs"
   name <- lexeme pIdent
@@ -92,10 +93,10 @@ pObsStmt = do
 pDecl :: Parser Decl
 pDecl = choice [pCardDecl, pFactorDecl, pDataDecl]
 
-pModelStmt :: Parser (ModelStmt SrcSpan)
+pModelStmt :: Parser (ModelStmt Parsing)
 pModelStmt = choice [pValStmt, pParamStmt, pObsStmt]
 
-pModel :: Parser (Model SrcSpan)
+pModel :: Parser (Model Parsing)
 pModel = Model <$> many pModelStmt
 
 
@@ -103,14 +104,14 @@ pModel = Model <$> many pModelStmt
 
 -- parsing programs
 
-parseProgram :: Parser (Program SrcSpan)
+parseProgram :: Parser (Program Parsing)
 parseProgram = do
   decls <- many pDecl
   model <- pModel
   eof
   return $ Program decls model
 
-parseLibrary :: Parser (Library SrcSpan)
+parseLibrary :: Parser (Library Parsing)
 parseLibrary = do
   defs <- many $ (Left <$> pFunDef) <|> (Right <$> pDistDef)
   eof

@@ -12,7 +12,7 @@ import AST
     Library (Library),
     Model (..),
     ModelStmt (..),
-    VarDomain (Data, Param, Val),
+    Parsing, Elaboration
   )
 -- import Data.Maybe (fromMaybe, mapMaybe)
 
@@ -49,10 +49,10 @@ cofreeHead = headF . runIdentity . getCompose . project
 checkModelStmt ::
   forall m a.
   (MonadTyCtx m) =>
-  ModelStmt SrcSpan ->
-  m (ModelStmt Ty)
+  ModelStmt Parsing ->
+  m (ModelStmt Elaboration)
 checkModelStmt (ValStmt name ty val) =
-  local (insertTy name Val ty) $ do
+  local (insertTy name ty) $ do
     validateType ty
     val' <- inferTy val
     let ty' = cofreeHead val'
@@ -60,13 +60,13 @@ checkModelStmt (ValStmt name ty val) =
     when (not $ ty' `broadcastsTo` ty) $ doesNotMatchReturnType ty ty'
     return (ValStmt name ty val')
 checkModelStmt (ParamStmt name ty dist bij) =
-  local (insertTy name Param ty) $ do
+  local (insertTy name ty) $ do
     validateType ty
     Distribution dname args ty' (bd, _) <- inferTyDist dist
     -- let err = expectedGot ty ty'
     when (not $ ty' `broadcastsTo` ty) $ doesNotMatchReturnType ty ty'
     let br_sh = shDiff (shape ty') (shape ty)
-    let bij' = fmap (const ty') <$> bij
+    let bij' = bij
     -- ensure bij' is a known bijector of the right type
     let dist' = Distribution dname args ty (bd, br_sh)
     return (ParamStmt name ty dist' bij')
@@ -82,16 +82,16 @@ checkModelStmt (ObsStmt name dist) = do
 checkModel ::
   forall m.
   (MonadState Ctx m, MonadValidate TypeError m) =>
-  Model SrcSpan ->
-  m (Model Ty)
+  Model Parsing ->
+  m (Model Elaboration)
 checkModel (Model stmts) = Model <$> traverse go stmts
   where
-    go :: ModelStmt SrcSpan -> m (ModelStmt Ty)
+    go :: ModelStmt Parsing -> m (ModelStmt Elaboration)
     go stmt =
       get >>= runReaderT (checkModelStmt stmt) >>= \x -> case x of
         ObsStmt _ _ -> pure x
-        (ParamStmt name ty dist bij) -> modify (insertTy name Param ty) >> pure x
-        (ValStmt name ty val) -> modify (insertTy name Val ty) >> pure x
+        (ParamStmt name ty dist bij) -> modify (insertTy name ty) >> pure x
+        (ValStmt name ty val) -> modify (insertTy name ty) >> pure x
 
 allSame :: Eq a => [a] -> Bool
 allSame xs = and $ zipWith (==) xs (tail xs)
@@ -99,8 +99,8 @@ allSame xs = and $ zipWith (==) xs (tail xs)
 checkLib ::
   forall m.
   (MonadState Ctx m, MonadValidate TypeError m) =>
-  Library SrcSpan ->
-  m (Library Ty)
+  Library Parsing ->
+  m (Library Elaboration)
 checkLib (Library funs dists) = do
   funs' <- checkFunDefs funs
   dists' <- checkDistDefs dists

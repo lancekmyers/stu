@@ -3,9 +3,7 @@ module Parser.Expr (pExpr) where
 import AST
   ( BinOp (..),
     ExprF (..),
-    ExprSrc,
-    VarDomain (..),
-  )
+    ExprSrc, Name  )
 import Control.Comonad.Trans.Cofree (CofreeF ((:<)), cofree)
 import Control.Monad.Combinators.Expr
   ( Operator (InfixL),
@@ -37,7 +35,7 @@ withLoc parser = do
   return . cofree $ (mkPos from to) :< x
 
 pVariable :: Parser ExprSrc
-pVariable = withLoc $ VarF <$> (lexeme pIdent) <*> (pure Unknown)
+pVariable = withLoc $ VarF <$> (lexeme pIdent)
 
 pLitInt :: Parser ExprSrc
 pLitInt = withLoc $ LitInt . fromInteger <$> signedInteger

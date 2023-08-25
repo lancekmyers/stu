@@ -52,15 +52,15 @@ library
         prettyprinter,
         prettyprinter-ansi-terminal, 
         ansi-terminal,
-        fsnotify, 
         filepath, 
         directory,
         free, 
         optparse-applicative, 
         comonad, 
         data-fix, 
-        diagnose, 
-        monad-validate
+        diagnose == 2.5.*, 
+        monad-validate,
+        optics
 
     hs-source-dirs:   app
     default-language: Haskell2010
@@ -101,7 +101,7 @@ executable stu
         prettyprinter,
         prettyprinter-ansi-terminal, 
         ansi-terminal,
-        fsnotify,
+        optics,
         filepath,
         directory,
         free,
@@ -110,7 +110,6 @@ executable stu
         diagnose, 
         monad-validate,
         stu
-
 
     hs-source-dirs:   app
     default-language: Haskell2010

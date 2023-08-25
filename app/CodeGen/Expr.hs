@@ -2,14 +2,16 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GADTs #-}
 
 module CodeGen.Expr where
 
 import AST
   ( BinOp (Add, Div, Mul, Sub),
     Expr,
-    ExprF (..),
-    VarDomain (Bound, Data, Local, Param, Unknown, Val),
+    ExprF (..), 
+    Elaboration
+    -- VarDomain (Bound, Data, Local, Param, Unknown, Val),
   )
 import CodeGen.Python
   ( PyExp (..),
@@ -26,11 +28,11 @@ import Data.Functor.Identity (Identity (..))
 import qualified Data.Text as T
 import Types (Card (..), Shape, Ty (..), shToList, shape)
 
-cgExpr :: Expr Ty -> PyExp
+cgExpr :: Expr Elaboration -> PyExp
 cgExpr = cata (\(Compose (Identity (ty :< e))) -> go ty e)
   where
     proj = tailF . runIdentity . getCompose
-    go :: Ty -> ExprF PyExp -> PyExp
+    go :: Ty -> ExprF Elaboration PyExp -> PyExp
     go _ (ArithF op x y) = case op of
       Add -> jnp "add" @@ [x, y]
       Mul -> jnp "multiply" @@ [x, y]
@@ -39,12 +41,13 @@ cgExpr = cata (\(Compose (Identity (ty :< e))) -> go ty e)
     go _ (LitInt n) = PyNum (Right n)
     go _ (LitReal x) = PyNum (Left x)
     go _ (LitArray xs) = PyList xs
-    go _ (VarF name Unknown) = PyIdent [] (name <> "_ack")
-    go _ (VarF name Local) = PyIdent [] ("_local_" <> name)
-    go _ (VarF name Bound) = PyIdent [] ("_bd_" <> name)
-    go _ (VarF name Val) = PyIdent [] (name <> "_val")
-    go _ (VarF name Data) = PyGet (PyIdent [] "data") (PyStr name)
-    go _ (VarF name Param) = PyIdent [] (name <> "_tr")
+    go _ (VarF name) = PyIdent [] ("_" <> name)
+    -- no generation of explicit broadcasts
+    go t (BroadcastF sh sh' x) = x
+    -- go _ (VarF (BoundVar name)) = PyIdent [] ("_bd_" <> name)
+    -- go _ (VarF (ValVar name))   = PyIdent [] (name <> "_val")
+    -- go _ (VarF (DataVar name))  = PyGet (PyIdent [] "data") (PyStr name)
+    -- go _ (VarF (ParamVar name)) = PyIdent [] (name <> "_tr")
     go _ (FunAppF "mean" xs) =
       PyApply
         "jnp.mean"

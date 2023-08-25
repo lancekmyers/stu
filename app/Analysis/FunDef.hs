@@ -9,9 +9,9 @@ import AST
   ( FunBody (..),
     FunDef (FunDef),
     PrimApp (PrimApp),
-    VarDomain (Bound, Local),
+    Elaboration, Parsing
   )
-import Analysis.Context (Ctx (vars), MonadTyCtx, insertFun, insertTy, introCards, introCardsFromTy, validateType, introArgs)
+import Analysis.Context (Ctx (vars), MonadTyCtx, insertFun, insertTy, introCards, introCardsFromTys, validateType, introArgs)
 import Analysis.Error
 import Analysis.Expr (inferTy)
 import Control.Comonad.Identity (Identity (..))
@@ -19,7 +19,7 @@ import Control.Comonad.Trans.Cofree (Cofree, headF)
 import Control.Monad (forM_, when)
 import Control.Monad.Reader (ReaderT (runReaderT), runReader)
 import Control.Monad.Reader.Class (MonadReader (ask, local))
-import Control.Monad.State.Strict (MonadState (get))
+import Control.Monad.State.Strict (MonadState (get), withState)
 import Data.Functor.Compose (Compose (..))
 import Data.Functor.Foldable (Recursive (project))
 import qualified Data.Map.Strict as M
@@ -32,10 +32,10 @@ cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
 
-checkFunDefs :: forall m. (MonadValidate TypeError m, MonadState Ctx m) => [FunDef SrcSpan] -> m [FunDef Ty]
+checkFunDefs :: forall m. (MonadValidate TypeError m, MonadState Ctx m) => [FunDef Parsing] -> m [FunDef Elaboration]
 checkFunDefs funs = mapM go funs
   where
-    go :: FunDef SrcSpan -> m (FunDef Ty)
+    go :: FunDef Parsing -> m (FunDef Elaboration)
     go defn = do
       ctx <- get
       defn'@(FunDef name args ret body) <- runReaderT (checkFunDef defn) ctx
@@ -46,30 +46,30 @@ checkFunDefs funs = mapM go funs
 
 checkFunDef ::
   (MonadTyCtx m) =>
-  FunDef SrcSpan -> 
-  m (FunDef Ty)
-checkFunDef (FunDef name args ret body) =
-  local (mconcat $ introCardsFromTy . snd <$> args) $ 
-  local (introArgs args) $ do
-    (ret', body') <- checkFunBody body
-    when (not $ ret' == ret) $ doesNotMatchReturnType ret ret'
-    -- insertFun name (FunctionTy args ret)
-    return $ FunDef name args ret' body'
+  FunDef Parsing -> 
+  m (FunDef Elaboration)
+checkFunDef (FunDef name args ret body) = do
+  let cards = map snd args
+  (ret', body') <- 
+    local (introCardsFromTys cards . introArgs args) $       
+      checkFunBody body 
+  when (not $ ret' == ret) $ doesNotMatchReturnType ret ret'
+  return $ FunDef name args ret' body'
 
 
 checkFunBody ::
   (MonadTyCtx m) =>
-  FunBody SrcSpan ->
-  m (Ty, FunBody Ty)
+  FunBody Parsing ->
+  m (Ty, FunBody Elaboration)
 checkFunBody (LetPrimIn name ty (PrimApp fprim args) rest) =
-  local (insertTy name Local ty) $ do
+  local (insertTy name ty) $ do
     validateType ty
     -- insertTy name Local ty
     args' <- traverse inferTy args
     (rty, rest') <- checkFunBody rest
     return $ (rty, LetPrimIn name ty (PrimApp fprim args') rest')
 checkFunBody (FunLetIn name ty val rest) 
-  = local (insertTy name Local ty) $ do
+  = local (insertTy name ty) $ do
   validateType ty
   val' <- inferTy val 
   let ty' = cofreeHead val'

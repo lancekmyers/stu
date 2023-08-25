@@ -1,14 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE 
-    TypeApplications
-  , MultiParamTypeClasses
+{-# LANGUAGE MultiParamTypeClasses
   , PartialTypeSignatures
   , FlexibleInstances #-}
 
 module Main where
 
-import AST (Library, Program (Program))
+import AST (Library, Program (Program), Elaboration, Parsing)
 import Analysis
   ( Ctx,
     buildCtx,
@@ -79,6 +77,7 @@ import Error.Diagnose
 import Error.Diagnose.Compat.Megaparsec
 import Control.Monad.Validate (validateToErrorWith, ValidateT)
 import System.IO (hIsTerminalDevice, stdin)
+import Control.Monad (unless)
 
 
 data Options
@@ -93,13 +92,17 @@ data Options
 options :: Parser Options
 options =
   subparser $
-    (command "build" (info buildOptions $ progDesc "Build a stu model"))
-      <> (command "check" (info checkOptions $ progDesc "Check a stu model without building"))
-      <> (command "lib" (info libOptions $ progDesc "Check a stu library and compile"))
+    command "build" 
+      (info buildOptions $ progDesc "Build a stu model")
+      <> command "check" 
+          (info checkOptions $ progDesc "Check a stu model without building")
+      <> command "lib" 
+            (info libOptions $ progDesc "Check a stu library and compile")
   where
     buildOptions =
       BuildOptions
-        <$> (argument str (metavar "MODEL" <> help "File containing model to compile"))
+        <$> argument str 
+          (metavar "MODEL" <> help "File containing model to compile")
         <*> optional
           ( strOption
               ( long "output"
@@ -110,11 +113,13 @@ options =
           )
     checkOptions =
       CheckOptions
-        <$> (argument str (metavar "MODEL" <> help "File containing model to compile"))
+        <$> argument str 
+          (metavar "MODEL" <> help "File containing model to compile")
 
     libOptions =
       LibOptions
-        <$> (argument str (metavar "LIBRARY" <> help "File containing librar"))
+        <$> argument str 
+          (metavar "LIBRARY" <> help "File containing librar")
 
 
 {-
@@ -127,23 +132,23 @@ options =
 
 -- type Err = Report (Doc AnsiStyle)
 
-parseFile :: FilePath -> ExceptT (Diagnostic Text) IO (Text, Program SrcSpan)
+parseFile :: FilePath -> ExceptT (Diagnostic Text) IO (Text, Program Parsing)
 parseFile fname = do
   fcontents <- lift $ TIO.readFile fname
   case runParser parseProgram fname fcontents of
     Left bundle -> 
         let diag = errorDiagnosticFromBundle Nothing "Parse error" Nothing bundle 
         in throwError $ addFile diag fname (T.unpack fcontents) 
-    Right prog -> return $ (fcontents, prog)
+    Right prog -> return (fcontents, prog)
 
-parseLibFile :: FilePath -> ExceptT (Diagnostic Text) IO (Text, Library SrcSpan)
+parseLibFile :: FilePath -> ExceptT (Diagnostic Text) IO (Text, Library Parsing)
 parseLibFile fname = do
   fcontents <- lift $ TIO.readFile fname
   case runParser parseLibrary fname fcontents of
     Left bundle -> 
         let diag = errorDiagnosticFromBundle Nothing "Parse error" Nothing bundle 
         in throwError $ addFile diag fname (T.unpack fcontents) 
-    Right lib -> return $ (fcontents, lib)
+    Right lib -> return (fcontents, lib)
 
 parseSig :: FilePath -> ExceptT (Diagnostic Text) IO Ctx
 parseSig fname = do
@@ -156,33 +161,33 @@ parseSig fname = do
 
 checkProgram
   :: Monad m 
-  =>  Ctx -> Program SrcSpan -> ValidateT TypeError m (Program Ty, Ctx)
+  =>  Ctx -> Program Parsing -> ValidateT TypeError m (Program Elaboration, Ctx)
 checkProgram ctx_std (Program decls model) = do
   let ctx = ctx_std <> buildCtx decls
   (model, ctx') <- runStateT (checkModel model) ctx
-  return $ (Program decls model, ctx)
+  return (Program decls model, ctx)
 
-checkLibrary :: Monad m => Library SrcSpan -> ValidateT TypeError m (Library Ty, Ctx)
+checkLibrary :: Monad m => Library Parsing -> ValidateT TypeError m (Library Elaboration, Ctx)
 checkLibrary lib = do
   (lib', ctx') <- runStateT (checkLib lib) mempty
-  return $ (lib', ctx')
+  return (lib', ctx')
 
 validateFileNames 
   :: (FilePath, Maybe FilePath) 
   -> ExceptT (Diagnostic Text)  IO (FilePath, FilePath)
 validateFileNames (inFileName, outFileName) 
-  = withExceptT (addReport def) $ do
+  = withExceptT (addReport mempty) $ do
   let fname = inFileName
   let out_fname = fromMaybe (fname -<.> ".py") outFileName
 
   case takeExtension fname of
     ".stu" -> pure ()
     ext -> throwError $ Err Nothing
-      ("Expected a '.stu' file, got: '" <> (T.pack ext) <> "'")
+      ("Expected a '.stu' file, got: '" <> T.pack ext <> "'")
       [] []
 
   file_exists <- liftIO $ doesFileExist fname
-  when (not file_exists) . throwError $ Err 
+  unless file_exists . throwError $ Err 
     Nothing
     "File does not exist"
     [] []
@@ -214,7 +219,7 @@ main' (BuildOptions inFileName outFileName) = do
   (progChecked, ctx) <- handler $ checkProgram std_lib prog
 
   liftIO . putDoc $
-    (annotate (color Green) $ "Success")
+    annotate (color Green) $ "Success"
       <+> "checked"
       <+> pretty fname <> line
 
@@ -233,7 +238,7 @@ main' (CheckOptions inFileName) = do
   progChecked <- handler $ checkProgram std_lib prog
 
   liftIO . putDoc $
-    (annotate (color Green) $ "Success")
+    annotate (color Green) "Success"
       <+> "checked"
       <+> pretty fname <> line
 main' (LibOptions libFile) = do
@@ -260,7 +265,10 @@ main = do
     Left err -> error_printer isTTY err
     Right foo -> return ()
   where
-    error_printer ispretty = printDiagnostic stdout ispretty ispretty 2 defaultStyle   
+    error_printer False = 
+      printDiagnostic stdout WithoutUnicode (TabSize 2) defaultStyle
+    error_printer True = 
+      printDiagnostic stdout WithUnicode (TabSize 2) defaultStyle   
     opts =
       info
         (options <**> helper)

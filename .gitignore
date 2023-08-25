@@ -8,3 +8,4 @@ result
 result-data
 result-doc
 .direnv/
+hie.yaml

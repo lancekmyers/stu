@@ -10,8 +10,8 @@ import AST
   ( Distribution (..),
     Library (Library),
     Model (..),
-    ModelStmt (..),
-    VarDomain (Data, Param, Val),
+    ModelStmt (..), 
+    Elaboration, Parsing
   )
 import Analysis.Context (MonadTyCtx, lookupDistTy)
 import Analysis.Error
@@ -27,15 +27,15 @@ import Util (SrcSpan)
 cofreeHead :: Functor f => Cofree f a -> a
 cofreeHead = headF . runIdentity . getCompose . project
 
-inferTyDist ::
+inferTyDist :: forall m. 
   (MonadTyCtx m) =>
-  Distribution SrcSpan ->
-  m (Distribution Ty)
+  Distribution Parsing ->
+  m (Distribution Elaboration)
 inferTyDist (Distribution dname args loc (_, br_sh)) = do
   fty <- lookupDistTy (Just loc) dname
   -- annotated expressions passed as arguments
-  arg_ann <- traverse inferTy args
-  let arg_tys = map cofreeHead arg_ann
+  arg_ann <- traverse inferTy args 
+  let arg_tys = (map cofreeHead) arg_ann 
   case unify arg_tys fty of
     Left _ -> badDistr dname loc arg_tys fty
     Right (bd, ret) ->

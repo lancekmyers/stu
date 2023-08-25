@@ -14,7 +14,13 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import Error.Diagnose hiding (pretty)
+import Error.Diagnose
+    ( Position(Position),
+      addReport,
+      Diagnostic,
+      Marker(This, Where),
+      Note(Note, Hint),
+      Report(Err) )
 import Prettyprinter
   ( Doc,
     Pretty (pretty),
@@ -41,7 +47,7 @@ import Util (SrcSpan)
 type TypeError = Diagnostic T.Text
 
 mkDiagnostic :: Report msg -> Diagnostic msg
-mkDiagnostic = addReport def
+mkDiagnostic = addReport mempty
 
 badFunApp ::
   MonadValidate TypeError m =>
